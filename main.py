@@ -5,6 +5,7 @@ from scipy.fft import rfft2, rfftfreq, fftn, fftshift
 from scipy.interpolate import LinearNDInterpolator
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+import inspect
 
 
 class ensight_class:
@@ -18,16 +19,21 @@ class ensight_class:
         self.query = session.ensight.utils.query
         self.parameters = parameters
 
-        self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.cas.h5',
-                               result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.dat.h5')
-        #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.cas.h5',
-        #                       result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.dat.h5')
+        #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.cas.h5',
+        #                       result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.dat.h5')
+        self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.cas.h5',
+                               result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.dat.h5')
 
         self.session.ensight.file.animation_format("mpeg4")
         self.session.ensight.solution_time.update_type("continuous")
         self.session.ensight.solution_time.show_as("time")
         self.t0 = self.eocore.TIMEVALUES[0]
         self.tn = self.eocore.TIMEVALUES[-1]
+
+        self.main_vp = self.eocore.VPORTS['Main Viewport'][0]
+        self.main_vp.setattrs(dict([['BACKGROUNDTYPE',self.eonums.VPORT_CONS],
+                                    ['CONSTANTRGB',[0.2,0.2,0.2]]]))
+
         self.fluid_part = self.eocore.PARTS['fluid'][0]
         self.symmetry_part = self.eocore.PARTS['symmetry'][0]
         self.solid_coupling_part = self.eocore.PARTS['solid_coupling'][0]
@@ -36,6 +42,7 @@ class ensight_class:
         self.shape_default = self.eocore.DEFAULTANNOTS[self.session.ensight.ANNOT_SHAPE]
         self.line_default = self.eocore.DEFAULTANNOTS[self.session.ensight.ANNOT_LINE]
         self.gauge_default = self.eocore.DEFAULTANNOTS[self.session.ensight.ANNOT_GAUGE]
+        self.text_default = self.eocore.DEFAULTANNOTS[self.session.ensight.ANNOT_TEXT]
         self.coords = self.eocore.VARIABLES['Coordinates'][0]
         self.velocity = self.eocore.VARIABLES["Velocity"][0]
         self.vf_water = self.eocore.VARIABLES["Volume_fraction_water"][0]
@@ -51,7 +58,7 @@ class ensight_class:
         self.vibration_state_pos = self.eocore.create_variable(name='vibration_state_pos',
                                                       sources=[self.fluid_part],
                                                       value=f'GT(vibration_state,0)')
-        self.vibration_state = self.eocore.create_variable(name='vibration_state_neg',
+        self.vibration_state_neg = self.eocore.create_variable(name='vibration_state_neg',
                                                       sources=[self.fluid_part],
                                                       value=f'LT(vibration_state,0)')
 
@@ -67,32 +74,72 @@ class ensight_class:
 
         self.top_arrow = self.shape_default.createannot('top_arrow')
         self.top_arrow.setattrs(dict([['TYPE',self.eonums.ANNOT_SHAPE_ARROW],
-                                      ['WIDTH',0.02],
+                                      ['HEIGHT',0.002],
                                       ['LENGTH',0.150],
                                       ['ARROWTIPLENGTH',0.08],
                                       ['ARROWTIPSIZE',1],
-                                      ['ORIGIN',[0.024,0.6]],
-                                      ['ROTATIONANGLE',270],
+                                      ['LOCATIONX',0.024],
+                                      ['LOCATIONY',0.6],
+                                      ['ROTATIONALANGLE',270],
                                       ['RGB',[1,1,1]],
                                       ['FILL',True]]))
                                                         
         self.bottom_arrow = self.shape_default.createannot('bottom_arrow')
         self.bottom_arrow.setattrs(dict([['TYPE',self.eonums.ANNOT_SHAPE_ARROW],
-                                                            ['WIDTH',0.02],
-                                                            ['LENGTH',0.150],
-                                                            ['ARROWTIPLENGTH',0.08],
-                                                            ['ARROWTIPSIZE',1],
-                                                            ['LOCATIONX',0.024],
-                                                            ['LOCATIONY',0.3],
-                                                            ['ROTATIONANGLE',90],
-                                                            ['RGB',[1,1,1]],
-                                                            ['FILL',True]]))
+                                         ['LENGTH',0.150],
+                                         ['HEIGHT',0.002],
+                                         ['LOCATIONX',0.024],
+                                         ['LOCATIONY',0.3],
+                                         ['ROTATIONALANGLE',90],
+                                         ['ARROWTIPLENGTH',0.08],
+                                         ['ARROWTIPSIZE',1],
+                                         ['RGB',[1,1,1]],
+                                         ['FILL',True]]))
+
+        self.top_gauge = self.gauge_default.createannot(self.vibration_state_pos.DESCRIPTION)
+        self.top_gauge.setattrs(dict([['BACKGROUND',True],
+                                      ['BACKGROUNDRGB',[0.2,0.2,0.2]],
+                                      ['LEVELRGB',[0.65,0.07,0.08]],
+                                      ['BORDER',False],
+                                      ['HEIGHT',0.13],
+                                      ['LOCATIONX',0.025],
+                                      ['LOCATIONY',0.452],
+                                      ['MAXIMUM',1],
+                                      ['MINIMUM',0],
+                                      ['VALUE',False],
+                                      ['WIDTH',0.02]]))
         
-        self.centre_line = self.line_default.createannot('centre_line')
+        self.bottom_gauge = self.gauge_default.createannot(self.vibration_state_neg.DESCRIPTION)
+        self.bottom_gauge.setattrs(dict([['BACKGROUND',True],
+                                         ['BACKGROUNDRGB',[0.65,0.07,0.08]],
+                                         ['BORDER',False],
+                                         ['HEIGHT',0.13],
+                                         ['LOCATIONX',0.025],
+                                         ['LOCATIONY',0.318],
+                                         ['MAXIMUM',0],
+                                         ['MINIMUM',-1],
+                                         ['LEVELRGB',[0.2,0.2,0.2]],
+                                         ['VALUE',False],
+                                         ['WIDTH',0.02]]))
+        
+        self.text_1 = self.text_default.createannot('l')
+        self.text_1.setattrs(dict([['JUSTIFICATION',self.eonums.TS_CENTER],
+                                      ['SIZE',100],
+                                      ['LOCATIONX',0.046],
+                                      ['LOCATIONY',0.44],
+                                      ['RGB',[0.2,0.2,0.2]]]))
+        self.text_2 = self.text_default.createannot('l')
+        self.text_2.setattrs(dict([['JUSTIFICATION',self.eonums.TS_CENTER],
+                                      ['SIZE',100],
+                                      ['LOCATIONX',0.046],
+                                      ['LOCATIONY',0.212],
+                                      ['RGB',[0.2,0.2,0.2]]]))
+
+        self.centre_line = self.line_default.createannot()
         self.centre_line.setattrs(dict([['WIDTH',4],
                                          ['LOCATIONX1',0.024],
                                          ['LOCATIONY1',0.45],
-                                         ['LOCATIONX2',0.04],
+                                         ['LOCATIONX2',0.036],
                                          ['LOCATIONY2',0.45],
                                          ['RGB',[1,1,1]]]))
 
