@@ -19,13 +19,12 @@ class ensight_class:
         self.query = session.ensight.utils.query
         self.parameters = parameters
 
-        #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.cas.h5',
-        #                       result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.dat.h5')
-        self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.cas.h5',
-                               result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.dat.h5')
+        self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.cas.h5',
+                               result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\test_simple_vibrate-1-*.dat.h5')
+        #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.cas.h5',
+        #                       result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.dat.h5')
 
         self.session.ensight.file.animation_format("mpeg4")
-        self.session.ensight.solution_time.update_type("continuous")
         self.session.ensight.solution_time.show_as("time")
         self.t0 = self.eocore.TIMEVALUES[0]
         self.tn = self.eocore.TIMEVALUES[-1]
@@ -154,7 +153,7 @@ class ensight_class:
         self.session.ensight.file.animation_file(fr"""D:\Uni_Projects\PALM_Projects\Testing\Working_Geometry_Testing\postprocessing\{fname} """)
         self.session.ensight.file.animation_window_size("user_defined")
         self.session.ensight.file.animation_window_xy(3840,2160)
-        self.session.ensight.solution_time.increment((self.tn[1]-self.t0[1])/(self.tn[0]))
+        self.session.ensight.solution_time.increment(1)
         self.session.ensight.file.animation_frames(self.tn[0])
         self.session.ensight.file.animation_start_number(0)
         self.session.ensight.file.animation_multiple_images("OFF")
@@ -303,61 +302,70 @@ class ensight_class:
     def fft_of_surface(self):
 
         self.coord_iso = self.iso_default.createpart(name="coord_iso", sources=self.fluid_part, attributes=[['VARIABLE',self.vf_water]])[0]
+        self.session.ensight.solution_time.show_as("step")
+        self.session.ensight.solution_time.increment(1)
         self.session.ensight.solution_time.update_to_first()
-        self.iso_surface_coordinates = self.coord_iso.get_values([self.coords], activate=1)[self.coords]
 
-        N = 641
-        M = 65
-        xf_vert = np.zeros((N,M))
-        xf_hor = np.zeros((M,N))
-        f,(ax,ax_f) = plt.subplots(2,3)
+        for i in range(10):
+            self.iso_surface_coordinates = self.coord_iso.get_values([self.coords,'Analysis_Time'], activate=1)[self.coords]
+            with open('iso_{}.npy'.format(i),'wb') as f:
+                np.save(f,self.iso_surface_coordinates)
+            
+            self.session.ensight.solution_time.step_forward()
+  
+        if False:
+            N = 641
+            M = 65
+            xf_vert = np.zeros((N,M))
+            xf_hor = np.zeros((M,N))
+            f,(ax,ax_f) = plt.subplots(2,3)
 
-        x = np.linspace(-250e-6,250e-6,N)
-        y = np.linspace(-250e-6,250e-6,N)
-        X,Y = np.meshgrid(x,y)
+            x = np.linspace(-250e-6,250e-6,N)
+            y = np.linspace(-250e-6,250e-6,N)
+            X,Y = np.meshgrid(x,y)
 
-        interp = LinearNDInterpolator(self.iso_surface_coordinates[:,:2], self.iso_surface_coordinates[:,2])
-        xf_hor = interp(X[288:353,:],Y[288:353,:])
-        xf_vert = interp(X[:,288:353],Y[:,288:353])
+            interp = LinearNDInterpolator(self.iso_surface_coordinates[:,:2], self.iso_surface_coordinates[:,2])
+            xf_hor = interp(X[288:353,:],Y[288:353,:])
+            xf_vert = interp(X[:,288:353],Y[:,288:353])
 
-        
-        ax[0].scatter(X[288:353,:],Y[288:353,:],s=0.01,c=xf_hor, vmin=475e-6,vmax=485e-6)
-        ax[1].scatter(X[:,288:353],Y[:,288:353],s=0.01,c=xf_vert, vmin=475e-6,vmax=485e-6)
-        ax[2].scatter(self.iso_surface_coordinates[:,0],self.iso_surface_coordinates[:,1],c=self.iso_surface_coordinates[:,2],s=0.1, vmin=475e-6,vmax=485e-6)
-        ax[0].set_xlim(-250e-6,250e-6)
-        ax[0].set_ylim(-250e-6,250e-6)
-        ax[1].set_xlim(-250e-6,250e-6)
-        ax[1].set_ylim(-250e-6,250e-6)
-        ax[2].set_xlim(-250e-6,250e-6)
-        ax[2].set_ylim(-250e-6,250e-6)
-        
-        #ax[0].plot(Y[:,150],normalised_distance[:,150],'-r')
-        #ax[0].plot(Y[:,150],new_distance[:,150],'-k')
-        #ax[0].set_xlim(-25e-6,25e-6)
+            
+            ax[0].scatter(X[288:353,:],Y[288:353,:],s=0.01,c=xf_hor, vmin=475e-6,vmax=485e-6)
+            ax[1].scatter(X[:,288:353],Y[:,288:353],s=0.01,c=xf_vert, vmin=475e-6,vmax=485e-6)
+            ax[2].scatter(self.iso_surface_coordinates[:,0],self.iso_surface_coordinates[:,1],c=self.iso_surface_coordinates[:,2],s=0.1, vmin=475e-6,vmax=485e-6)
+            ax[0].set_xlim(-250e-6,250e-6)
+            ax[0].set_ylim(-250e-6,250e-6)
+            ax[1].set_xlim(-250e-6,250e-6)
+            ax[1].set_ylim(-250e-6,250e-6)
+            ax[2].set_xlim(-250e-6,250e-6)
+            ax[2].set_ylim(-250e-6,250e-6)
+            
+            #ax[0].plot(Y[:,150],normalised_distance[:,150],'-r')
+            #ax[0].plot(Y[:,150],new_distance[:,150],'-k')
+            #ax[0].set_xlim(-25e-6,25e-6)
 
-        Z = fftn(xf_hor)[15:M//2+1,15:N//2+1]
-        Z_2 = fftn(xf_vert)[15:N//2+1,15:M//2+1]
-        freq_rows = rfftfreq(N, 50/64)[15:]
-        freq_cols = rfftfreq(M, 50/64)[15:]
+            Z = fftn(xf_hor)[15:M//2+1,15:N//2+1]
+            Z_2 = fftn(xf_vert)[15:N//2+1,15:M//2+1]
+            freq_rows = rfftfreq(N, 50/64)[15:]
+            freq_cols = rfftfreq(M, 50/64)[15:]
 
-        F_R,F_C = np.meshgrid(freq_rows,freq_cols)
+            F_R,F_C = np.meshgrid(freq_rows,freq_cols)
 
-        wavelength_normed = np.sqrt(np.power(F_R,2)+np.power(F_C,2)).flatten()
-        Z_flat = np.log(np.power(np.abs(Z),2)).flatten()
-        ax_f[1].scatter(wavelength_normed,Z_flat)
-        #ax_f[0].scatter(F_R,F_C,s=1,c=np.log(np.power(np.abs(Z),2)))
-        #ax_f[0].set_xlim(0,)
-        #ax_f[1].contour(F_R,F_C,np.log(np.power(np.abs(Z),2)))
-        ax_f[0].imshow(np.log(np.power(np.abs(Z),2)))
-        #ax_f[1].contour(F_C,F_R,np.log(np.power(np.abs(Z_2),2)))
-        #ax_f[1].plot(1/freq_rows[15:],np.abs(np.real(Z[50,15:])))
+            wavelength_normed = np.sqrt(np.power(F_R,2)+np.power(F_C,2)).flatten()
+            Z_flat = np.log(np.power(np.abs(Z),2)).flatten()
+            ax_f[1].scatter(wavelength_normed,Z_flat)
+            #ax_f[0].scatter(F_R,F_C,s=1,c=np.log(np.power(np.abs(Z),2)))
+            #ax_f[0].set_xlim(0,)
+            #ax_f[1].contour(F_R,F_C,np.log(np.power(np.abs(Z),2)))
+            ax_f[0].imshow(np.log(np.power(np.abs(Z),2)))
+            #ax_f[1].contour(F_C,F_R,np.log(np.power(np.abs(Z_2),2)))
+            #ax_f[1].plot(1/freq_rows[15:],np.abs(np.real(Z[50,15:])))
 
-        #ax[1].scatter(X,Y,s=10,c=new_distance)
-        #ax[1].plot(lines[:,0],lines[:,1],'-r')
-        #ax[1].imshow(np.real(Z), cmap=cm.gray)
+            #ax[1].scatter(X,Y,s=10,c=new_distance)
+            #ax[1].plot(lines[:,0],lines[:,1],'-r')
+            #ax[1].imshow(np.real(Z), cmap=cm.gray)
 
 
-        plt.show()
+            plt.show()
     
 
 
@@ -379,7 +387,7 @@ def main():
 
     #ensight_pp.shearrate_animation()
 
-    #ensight_pp.fft_of_surface()
+    ensight_pp.fft_of_surface()
     
 
     '''
