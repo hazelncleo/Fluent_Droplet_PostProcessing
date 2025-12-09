@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 from scipy.fft import fft, fftfreq, fftshift, fft2, rfft2, rfftfreq, rfft
 from scipy.interpolate import LinearNDInterpolator
 import skimage as ski
-from photutils.profiles import RadialProfile
 import glob as glob
+#plt.rcParams['text.usetex'] = True
 
 def f_1(x):
     return 3*np.cos(2*np.pi*x)
@@ -159,6 +159,34 @@ def main():
         truth_array = np.logical_and(frequency > 0.022 , frequency <= 0.4) 
         Zf_hor_w = Zf_hor_w.flatten()
         ax[1,3].scatter(1/frequency[truth_array], Zf_hor_w[truth_array],s=0.75,c='k')
+        
+        ax[0,0].set_title('Raw Data for Vertical Section')
+        ax[0,1].set_title('Raw Data for Horizontal Section')
+        ax[0,2].set_title('Windowed Vertical Data')
+        ax[0,3].set_title('Windowed Horizontal Data')
+        ax[1,0].set_title('Logged PSD, Vertical')
+        ax[1,1].set_title('Logged PSD, Horizontal')
+        ax[1,2].set_title('Normed Wavelength Powers, Vertical')
+        ax[1,3].set_title('Normed Wavelength Powers, Horizontal')
+        
+        ax[0,0].set_xlabel(r'Position $(\mu m)$')
+        ax[0,0].set_ylabel(r'Position $(\mu m)$')
+        ax[0,1].set_xlabel(r'Position $(\mu m)$')
+        ax[0,1].set_ylabel(r'Position $(\mu m)$')
+        ax[0,2].set_xlabel(r'Position $(\mu m)$')
+        ax[0,2].set_ylabel(r'Position $(\mu m)$')
+        ax[0,3].set_xlabel(r'Position $(\mu m)$')
+        ax[0,3].set_ylabel(r'Position $(\mu m)$')
+        ax[1,0].set_xlabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
+        ax[1,0].set_ylabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
+        ax[1,1].set_xlabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
+        ax[1,1].set_ylabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
+        ax[1,2].set_xlabel(r'Wavelength $(\mu m)$')
+        ax[1,2].set_ylabel(r'Logged PSD')
+        ax[1,3].set_xlabel(r'Wavelength $(\mu m)$')
+        ax[1,3].set_ylabel(r'Logged PSD')
+        
+        
 
         plt.savefig('.\\images\\image_{}.png'.format(i),dpi=750)
     
