@@ -3,12 +3,15 @@ import matplotlib.pyplot as plt
 from scipy.fft import fftfreq, fftshift, fft2
 from scipy.interpolate import LinearNDInterpolator
 from skimage.filters import window
-from glob import glob
+from seaborn import color_palette, dark_palette
 from HazelsAwesomeTheme import red_text,green_text,blue_text,yellow_text
-from blessed import Terminal
+plt.style.use('ggplot')
+
 
 class FFT_ISO:
     def __init__(self, parameters = {'frequency' : 1.63e6,
+                                     'amplitude' : 1e-6,
+                                     'n_cycles' : 60,
                                      'n_levels_refinement' : 4,
                                      'channel_width' : 50,
                                      'grid_size' : 500}):
@@ -20,9 +23,14 @@ class FFT_ISO:
         :param data: Description
         :param file: Description
         '''
+
+        self.cmap_psd = color_palette('rocket', as_cmap=True)
+        self.cmap_deform = dark_palette("#69d", as_cmap=True)
         
         # Calculate sampling data from provided parameters
         self.sampling_data = {'frequency' : parameters['frequency'],
+                              'amplitude' : 1e-6,
+                              'n_cycles' : 60,
                               'channel_width' : parameters['channel_width'],
                               'grid_size' : parameters['grid_size'],
                               'elements_along_width' : 2 * np.power(2, parameters['n_levels_refinement']),
@@ -31,6 +39,9 @@ class FFT_ISO:
         self.sampling_data.update({'sample_spacing' : parameters['grid_size']/self.sampling_data['elements_along_length'],
                                    'n_samples_width' : self.sampling_data['elements_along_width'] + 1,
                                    'n_samples_length' : self.sampling_data['elements_along_length'] + 1})
+        
+        self.data_loaded = False
+        self.frequency_multiplier = np.array([0.5,1,2,3])
         
         self.create_meshes()
         
@@ -80,7 +91,7 @@ class FFT_ISO:
                         'horizontal' : window(('tukey', 0.75), self.meshes['horizontal_x_mesh'].shape)} 
     
 
-    def solve(self, data = None, file = None):
+    def solve(self, data = None, file = None, time_data = [0,0]):
         '''
         Docstring for solve_for_data
         
@@ -89,19 +100,19 @@ class FFT_ISO:
         :param file: Description
         '''
         
-        if file:
-            if data:
+        if data is not None:
+            if file:
                 print(yellow_text('Both Data and a File were provided, using the data for subsequent calculations.'))
-            else:
-                # Read coordinate data
-                with open(file, 'rb') as f:
-                    data = np.load(f)
-                    
+        elif file:
+            # Read coordinate data
+            with open(file, 'rb') as f:
+                data = np.load(f)
         else:
             print(red_text('No Data or File was provided to perform the FFT on.'))
             raise FileExistsError
 
         # Convert data to micron and save
+        self.time_data = time_data
         self.raw_data = data*1e6
         del data
         
@@ -114,6 +125,8 @@ class FFT_ISO:
         self.calculate_PSDs()
         
         self.calculate_normed_wavelengths()
+
+        self.data_loaded = True
 
 
     def centre_data(self):
@@ -153,6 +166,22 @@ class FFT_ISO:
                     'vertical_windowed' : np.log(np.abs(self.fft_data['vertical_windowed'])**2),
                     'horizontal_windowed' : np.log(np.abs(self.fft_data['horizontal_windowed'])**2)}
         
+        self.PSD.update({'vertical_flat' : self.PSD['vertical'].flatten(),
+                         'horizontal_flat' : self.PSD['horizontal'].flatten(),
+                         'vertical_windowed_flat' : self.PSD['vertical_windowed'].flatten(),
+                         'horizontal_windowed_flat' : self.PSD['horizontal_windowed'].flatten()})
+        
+
+    def calculate_masks(self):
+
+        self.masks = {'vertical_zero' : self.norms['vertical_frequency_flat'] != 0,
+                      'horizontal_zero' : self.norms['horizontal_frequency_flat'] != 0,
+                      'vertical_range' : self.norms['vertical_frequency_flat'] > 0.02,
+                      'horizontal_range' : self.norms['horizontal_frequency_flat'] > 0.02}
+        
+        self.masks.update({'vertical_zero-range' : self.masks['vertical_range'][self.masks['vertical_zero']],
+                           'horizontal_zero-range' : self.masks['horizontal_range'][self.masks['horizontal_zero']]})
+
     
     def calculate_normed_wavelengths(self):
         
@@ -166,10 +195,11 @@ class FFT_ISO:
             'horizontal_frequency_flat' : self.norms['horizontal_frequency'].flatten()
             })
         
+        self.calculate_masks()
                           
         self.norms.update({
-            'vertical_wavelength_flat' : np.reciprocal(self.norms['vertical_frequency_flat'][self.norms['vertical_frequency_flat'] != 0]),
-            'horizontal_wavelength_flat' : np.reciprocal(self.norms['horizontal_frequency_flat'][self.norms['horizontal_frequency_flat'] != 0])
+            'vertical_wavelength_flat' : np.reciprocal(self.norms['vertical_frequency_flat'][self.masks['vertical_zero']]),
+            'horizontal_wavelength_flat' : np.reciprocal(self.norms['horizontal_frequency_flat'][self.masks['horizontal_zero']])
             })
         
         
@@ -192,239 +222,158 @@ class FFT_ISO:
         :param display: Description
         '''
         
-        f,ax = plt.subplots(2,4, width_ratios=[1,1,1,1], height_ratios=[1,1], figsize=(20,10))
-        
+        # Create plot objects
+        f,ax = plt.subplots(2,4, width_ratios=[1,1,1,1], height_ratios=[1,1], layout='constrained', figsize=(22,13))
+        f.get_layout_engine().set(w_pad=0.2, h_pad=0.1, hspace=0.05, wspace=0)
+
         if title:
-            f.suptitle(title)
+            f.suptitle(title, size=50)
         
         # Set Styling
         ax[0,0].set(xlim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
                     ylim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
-                    title = 'Raw Data for Vertical Section',
-                    xlabel = r'Position $(\mu m)$',
-                    ylabel = r'Position $(\mu m)$')
+                    aspect = 'equal')
         
         ax[0,1].set(xlim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
                     ylim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
-                    title = 'Raw Data for Horizontal Section',
-                    xlabel = r'Position $(\mu m)$',
-                    ylabel = r'Position $(\mu m)$')
+                    aspect = 'equal')
         
         ax[0,2].set(xlim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
                     ylim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
-                    title = 'Windowed Vertical Data',
-                    xlabel = r'Position $(\mu m)$',
-                    ylabel = r'Position $(\mu m)$')
+                    aspect = 'equal')
         
         ax[0,3].set(xlim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
                     ylim = [-int(self.sampling_data['grid_size']/2),int(self.sampling_data['grid_size']/2)],
-                    title = 'Windowed Horizontal Data',
-                    xlabel = r'Position $(\mu m)$',
-                    ylabel = r'Position $(\mu m)$')
+                    aspect = 'equal')
         
         ax[1,0].set(xlim = [np.min(self.meshes['vertical_y_frequency_mesh']),np.max(self.meshes['vertical_y_frequency_mesh'])],
                     ylim = [np.min(self.meshes['vertical_y_frequency_mesh']),np.max(self.meshes['vertical_y_frequency_mesh'])],
-                    title = 'Logged PSD, Vertical',
-                    xlabel = r'Spatial Frequency $(\frac{1}{\mu m})$',
-                    ylabel = r'Spatial Frequency $(\frac{1}{\mu m})$')
+                    aspect = 'equal')
         
         ax[1,1].set(xlim = [np.min(self.meshes['vertical_y_frequency_mesh']),np.max(self.meshes['vertical_y_frequency_mesh'])],
                     ylim = [np.min(self.meshes['vertical_y_frequency_mesh']),np.max(self.meshes['vertical_y_frequency_mesh'])],
-                    title = 'Logged PSD, Horizontal',
-                    xlabel = r'Spatial Frequency $(\frac{1}{\mu m})$',
-                    ylabel = r'Spatial Frequency $(\frac{1}{\mu m})$')
+                    aspect = 'equal')
         
-        ax[1,2].set(title = 'Normed Wavelength Powers, Vertical',
-                    xlabel = r'Wavelength $(\mu m)$',
-                    ylabel = r'Logged PSD')
+        ax[1,2].set_aspect(1.75)
+        ax[1,3].set_aspect(1.75)
+
+        ax[0,0].set_title('Raw Data for Vertical Section', fontsize=12)
+        ax[0,1].set_title('Raw Data for Horizontal Section', fontsize=12)
+        ax[0,2].set_title('Windowed Vertical Data', fontsize=12)
+        ax[0,3].set_title('Windowed Horizontal Data', fontsize=12)
+        ax[1,0].set_title('Logged PSD, Vertical', fontsize=12)
+        ax[1,1].set_title('Logged PSD, Horizontal', fontsize=12)
+        ax[1,2].set_title('Normed Wavelength Powers, Vertical', fontsize=12)
+        ax[1,3].set_title('Normed Wavelength Powers, Horizontal', fontsize=12)
+
+        ax[0,0].set_xlabel(r'Position $(\mu m)$', fontsize=9)
+        ax[0,1].set_xlabel(r'Position $(\mu m)$', fontsize=9)
+        ax[0,2].set_xlabel(r'Position $(\mu m)$', fontsize=9)
+        ax[0,3].set_xlabel(r'Position $(\mu m)$', fontsize=9)
+        ax[1,0].set_xlabel(r'Spatial Frequency X $(\frac{1}{\mu m})$', fontsize=9)
+        ax[1,1].set_xlabel(r'Spatial Frequency X $(\frac{1}{\mu m})$', fontsize=9)
+        ax[1,2].set_xlabel(r'Wavelength $(\mu m)$', fontsize=9)
+        ax[1,3].set_xlabel(r'Wavelength $(\mu m)$', fontsize=9)
+
+        ax[0,0].set_ylabel(r'Position $(\mu m)$', fontsize=9)
+        ax[0,1].set_ylabel(r'Position $(\mu m)$', fontsize=9)
+        ax[0,2].set_ylabel(r'Position $(\mu m)$', fontsize=9)
+        ax[0,3].set_ylabel(r'Position $(\mu m)$', fontsize=9)
+        ax[1,0].set_ylabel(r'Spatial Frequency Y $(\frac{1}{\mu m})$', fontsize=9)
+        ax[1,1].set_ylabel(r'Spatial Frequency Y $(\frac{1}{\mu m})$', fontsize=9)
+        ax[1,2].set_ylabel(r'Logged PSD', fontsize=9)
+        ax[1,3].set_ylabel(r'Logged PSD', fontsize=9)
         
-        ax[1,3].set(title = 'Normed Wavelength Powers, Horizontal',
-                    xlabel = r'Wavelength $(\mu m)$',
-                    ylabel = r'Logged PSD')
-        
+        # Calculate colorbar ranges
+        vmin_1 = min(np.min(self.data['vertical']),np.min(self.data['horizontal']))
+        vmax_1 = max(np.max(self.data['vertical']),np.max(self.data['horizontal']))
+        vmin_2 = min(np.min(self.PSD['vertical_windowed']),np.min(self.PSD['horizontal_windowed']))
+        vmax_2 = max(np.max(self.PSD['vertical_windowed']),np.max(self.PSD['horizontal_windowed']))
+
         # Plot data
         ax[0,0].pcolormesh(self.meshes['vertical_x_mesh'],
                            self.meshes['vertical_y_mesh'],
-                           self.data['vertical'])
+                           self.data['vertical'],
+                           cmap=self.cmap_deform,
+                           vmin=vmin_1,
+                           vmax=vmax_1)
         
         ax[0,1].pcolormesh(self.meshes['horizontal_x_mesh'],
                            self.meshes['horizontal_y_mesh'],
-                           self.data['horizontal'])
+                           self.data['horizontal'],
+                           cmap=self.cmap_deform,
+                           vmin=vmin_1,
+                           vmax=vmax_1)
         
         ax[0,2].pcolormesh(self.meshes['vertical_x_mesh'],
                            self.meshes['vertical_y_mesh'],
-                           self.data['vertical_windowed'])
+                           self.data['vertical_windowed'],
+                           cmap=self.cmap_deform,
+                           vmin=vmin_1,
+                           vmax=vmax_1)
         
-        ax[0,3].pcolormesh(self.meshes['horizontal_x_mesh'],
-                           self.meshes['horizontal_y_mesh'],
-                           self.data['horizontal_windowed'])
+        pcm_1 = ax[0,3].pcolormesh(self.meshes['horizontal_x_mesh'],
+                                   self.meshes['horizontal_y_mesh'],
+                                   self.data['horizontal_windowed'],
+                                   cmap=self.cmap_deform,
+                                   vmin=vmin_1,
+                                   vmax=vmax_1)
         
         ax[1,0].pcolormesh(self.meshes['vertical_x_frequency_mesh'],
                            self.meshes['vertical_y_frequency_mesh'],
-                           self.PSD['vertical_windowed'])
+                           self.PSD['vertical_windowed'],
+                           cmap=self.cmap_psd,
+                           vmin=vmin_2,
+                           vmax=vmax_2)
         
-        ax[1,1].pcolormesh(self.meshes['horizontal_x_frequency_mesh'],
-                           self.meshes['horizontal_y_frequency_mesh'],
-                           self.PSD['horizontal_windowed'])
+        pcm_2 = ax[1,1].pcolormesh(self.meshes['horizontal_x_frequency_mesh'],
+                                   self.meshes['horizontal_y_frequency_mesh'],
+                                   self.PSD['horizontal_windowed'],
+                                   cmap=self.cmap_psd,
+                                   vmin=vmin_2,
+                                   vmax=vmax_2)
         
-        t = self.norms['vertical_wavelength_flat'] < 50
-        t_2 = self.norms['vertical_frequency_flat'] > 0.02
-        ax[1,2].scatter(self.norms['vertical_wavelength_flat'][t],self.PSD['vertical'].flatten()[t_2],color='k',s=0.75)
+        ax[1,2].scatter(self.norms['vertical_wavelength_flat'][self.masks['vertical_zero-range']],
+                        self.PSD['vertical_windowed_flat'][self.masks['vertical_range']],
+                        color='k',
+                        s=0.75)
         
+        ax[1,3].scatter(self.norms['horizontal_wavelength_flat'][self.masks['horizontal_zero-range']],
+                        self.PSD['horizontal_windowed_flat'][self.masks['horizontal_range']],
+                        color='k',
+                        s=0.75)
+        
+        # Finalizing Styling
+        for mult in self.frequency_multiplier:
+            ax[1,2].axvline(x = 8.8*mult,
+                            ymin = 0,
+                            ymax = 1, 
+                            color='r',
+                            lw=1,
+                            alpha=0.75,
+                            ls='--',
+                            dashes=(4,mult*3), 
+                            label = r'{:.1f}$\mu m$'.format(8.8*mult))
+            
+            ax[1,3].axvline(x = 8.8*mult,
+                            ymin = 0,
+                            ymax = 1, 
+                            color='r',
+                            lw=1,
+                            alpha=0.75,
+                            ls='--',
+                            dashes=(4,mult*3), 
+                            label = r'{:.1f}$\mu m$'.format(8.8*mult))
+
+        f.colorbar(pcm_1, ax=ax[0,1:3], orientation='horizontal', shrink=0.6, pad=0.06, label=r'$z$ Displacement $(\mu m)$', ticklocation='top')
+        f.colorbar(pcm_2, ax=ax[1,:2], orientation='horizontal', shrink=0.6, pad=0.06, label='Power', ticklocation='top')
+
+        ax[1,2].legend(loc='lower right', title='Theory Wavelengths', fancybox=True, fontsize='small', title_fontsize='small')
+        ax[1,3].legend(loc='lower right', title='Theory Wavelengths', fancybox=True, fontsize='small', title_fontsize='small')
+        
+        # Display or save to image
         if display:
             plt.show()
             
         if file_name:
-            plt.savefig(file_name, dpi = 750)
-        
-         
-
-
-def main():
-    
-    a = FFT_ISO()
-    a.solve(file='.\\files\\iso_1.npy')
-    a.full_plot(display=True)
-    # Set sampling data
-    print(bruh)
-    elements_along_width = 32
-    elements_along_length = 320
-    sample_spacing = 500/elements_along_length
-    N = elements_along_length + 1
-    M = elements_along_width + 1
-
-    files = glob('.\\files\\*.npy')
-
-    for i,file in enumerate(files):
-        # Read isosurface coordinates
-        with open(file, 'rb') as f:
-            coords = np.load(f)*1e6
-
-        # Centre Z coordinates around 0
-        coords[:,2] = coords[:,2] - np.mean(coords[:,2])
-        
-        # Create plot
-        f,ax = plt.subplots(2,4, width_ratios=[1,1,1,1], height_ratios=[1,1], figsize=(20,10))
-
-        # Create Meshes and other helpers
-        channel_width = np.linspace(-25,25,M)
-        channel_length = np.linspace(-250,250,N)
-        X_vert,Y_vert = np.meshgrid(channel_width,channel_length)
-        X_hor,Y_hor = np.meshgrid(channel_length,channel_width)
-        windows = window(('tukey', 0.75), X_vert.shape)
-        interp = LinearNDInterpolator(coords[:,:2], coords[:,2])
-
-        # Interpolate data onto ordered grid
-        Z_vert = interp(X_vert,Y_vert)
-        Z_hor = interp(X_hor,Y_hor)
-
-        # Get frequencies
-        xf = fftfreq(M, sample_spacing)
-        yf = fftfreq(N, sample_spacing)
-        Xf,Yf = np.meshgrid(xf,yf)
-
-        # 2D FFT with and without window functions
-        Zf_vert_w = fft2(Z_vert*windows)
-        Zf_hor_w = fft2(Z_hor*np.transpose(windows))
-
-        Xf, Yf, Zf_vert_w, Zf_hor_w = fftshift(Xf), fftshift(Yf), fftshift(Zf_vert_w), fftshift(Zf_hor_w)
-
-        # Get PSD
-        Zf_vert_w = np.log(np.abs(Zf_vert_w)**2)
-        Zf_hor_w = np.log(np.abs(Zf_hor_w)**2)
-
-        truth_array = (coords[:,0] > -25.00001) & (coords[:,0] < 25.00001)
-        ax[0,0].pcolormesh(X_vert,Y_vert,Z_vert,shading='gouraud')
-        ax[0,0].set_xlim(-250,250)
-        ax[0,0].set_ylim(-250,250)
-        
-        ax[0,1].pcolormesh(X_hor,Y_hor,Z_hor)
-        ax[0,1].set_xlim(-250,250)
-        ax[0,1].set_ylim(-250,250)
-
-        ax[0,2].pcolormesh(X_vert,Y_vert,Z_vert*windows)
-        ax[0,2].set_xlim(-250,250)
-        ax[0,2].set_ylim(-250,250)
-
-        ax[0,3].pcolormesh(X_hor,Y_hor,Z_hor*np.transpose(windows))
-        ax[0,3].set_xlim(-250,250)
-        ax[0,3].set_ylim(-250,250)
-
-        ax[1,0].pcolormesh(Xf,Yf,Zf_vert_w)
-        ax[1,0].set_xlim(-10*np.max(Xf),10*np.max(Xf))
-
-        ax[1,1].pcolormesh(np.transpose(Yf),np.transpose(Xf),Zf_hor_w,shading='gouraud')
-        ax[1,1].set_ylim(-10*np.max(Xf),10*np.max(Xf))
-
-        frequency= np.sqrt(np.power(Xf,2) + np.power(Yf,2)).flatten()
-        truth_array = np.logical_and(frequency > 0.022 , frequency <= 0.4) 
-        Zf_vert_w = Zf_vert_w.flatten()
-        ax[1,2].scatter(1/frequency[truth_array], Zf_vert_w[truth_array],s=0.75,c='k')
-        for mult in [0.5,1,2,3]:
-            ax[1,2].axvline(8.8*mult,0,1, color='r',lw=1,alpha=0.5,ls='--')
-            ax[1,3].axvline(8.8*mult,0,1, color='r',lw=1,alpha=0.5,ls='--')
-
-        frequency = np.transpose(np.sqrt(np.power(Xf,2) + np.power(Yf,2))).flatten()
-        truth_array = np.logical_and(frequency > 0.022 , frequency <= 0.4) 
-        Zf_hor_w = Zf_hor_w.flatten()
-        ax[1,3].scatter(1/frequency[truth_array], Zf_hor_w[truth_array],s=0.75,c='k')
-        
-        ax[0,0].set_title('Raw Data for Vertical Section')
-        ax[0,1].set_title('Raw Data for Horizontal Section')
-        ax[0,2].set_title('Windowed Vertical Data')
-        ax[0,3].set_title('Windowed Horizontal Data')
-        ax[1,0].set_title('Logged PSD, Vertical')
-        ax[1,1].set_title('Logged PSD, Horizontal')
-        ax[1,2].set_title('Normed Wavelength Powers, Vertical')
-        ax[1,3].set_title('Normed Wavelength Powers, Horizontal')
-        
-        ax[0,0].set_xlabel(r'Position $(\mu m)$')
-        ax[0,0].set_ylabel(r'Position $(\mu m)$')
-        ax[0,1].set_xlabel(r'Position $(\mu m)$')
-        ax[0,1].set_ylabel(r'Position $(\mu m)$')
-        ax[0,2].set_xlabel(r'Position $(\mu m)$')
-        ax[0,2].set_ylabel(r'Position $(\mu m)$')
-        ax[0,3].set_xlabel(r'Position $(\mu m)$')
-        ax[0,3].set_ylabel(r'Position $(\mu m)$')
-        ax[1,0].set_xlabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
-        ax[1,0].set_ylabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
-        ax[1,1].set_xlabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
-        ax[1,1].set_ylabel(r'Spatial Frequency $(\frac{1}{\mu m})$')
-        ax[1,2].set_xlabel(r'Wavelength $(\mu m)$')
-        ax[1,2].set_ylabel(r'Logged PSD')
-        ax[1,3].set_xlabel(r'Wavelength $(\mu m)$')
-        ax[1,3].set_ylabel(r'Logged PSD')
-        
-        
-
-        plt.savefig('.\\images\\image_{}.png'.format(i),dpi=750)
-    
-
-
-
-
-main()
-
-
-
-
-
-'''
-'vertical_frequency_angles' : np.arccos(
-np.where(
-np.isclose(self.norms['vertical_frequency'],0), 
-0, 
-np.where(self.meshes['vertical_y_frequency_mesh'] < 0, 
--self.meshes['vertical_x_frequency_mesh'], 
-self.meshes['vertical_x_frequency_mesh'])/self.norms['vertical_frequency']
-)),
-
-'horizontal_frequency_angles' : np.arccos(
-np.where(
-np.isclose(self.norms['horizontal_frequency'],0), 
-0, 
-np.where(self.meshes['horizontal_y_frequency_mesh'] < 0, 
--self.meshes['horizontal_x_frequency_mesh'], 
-self.meshes['horizontal_x_frequency_mesh'])/self.norms['horizontal_frequency']
-))
-})'''
+            f.savefig(file_name, dpi = 750)
