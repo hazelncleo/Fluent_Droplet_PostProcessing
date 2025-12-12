@@ -1,9 +1,12 @@
 import ansys.pyensight.core as ens
+#from ansys.pyensight.core import libuserd
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from sklearn.cluster import DBSCAN
 import matplotlib.cm as cm
 from fft_iso import FFT_ISO
+from scipy.interpolate import LinearNDInterpolator
 
 class ensight_class:
     def __init__(self, parameters, fpath, session = None, ensight = None):
@@ -30,8 +33,8 @@ class ensight_class:
         self.parameters = parameters
 
         if self.sesion_provided:
-            self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\data\\test_simple_vibrate-1-*.cas.h5',
-                                result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\data\\test_simple_vibrate-1-*.dat.h5')
+            self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\data_droplets\\test_simple_vibrate-1-*.cas.h5',
+                                result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\data_droplets\\test_simple_vibrate-1-*.dat.h5')
             #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.cas.h5',
             #                       result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.dat.h5')
         else:
@@ -94,6 +97,8 @@ class ensight_class:
         self.vibration_state_neg = self.eocore.create_variable(name='vibration_state_neg',
                                                       sources=[self.fluid_part],
                                                       value=f'LT(vibration_state,0)')
+        
+
 
     def set_iso_view(self):
         self.views.set_view_direction(1, 1, 1, name="isometric", up_axis=(0,0,1))
@@ -201,7 +206,7 @@ class ensight_class:
         self.ensight.file.save_animation()
 
 
-    def basic_animation(self):
+    def basic_animation(self): # TODO
 
         pass
 
@@ -331,12 +336,97 @@ class ensight_class:
         self.shearrate_iso_part.VISIBLE = False
 
 
-    def droplet_sizing(self):
+    def droplet_sizing(self): # TODO
+        
+        self.eocore.create_variable(name='temp_coords',
+                                    sources=[self.fluid_part],
+                                    value="Coordinates",
+                                    private=1)
 
-        pass
+        self.element_coords = self.eocore.create_variable(name='element_coords',
+                                                          sources=[self.fluid_part],
+                                                          value="NodeToElem(plist, temp_coords)")
+        
+        self.element_volume = self.eocore.create_variable(name='element_volume',
+                                                          sources=[self.fluid_part],
+                                                          value="EleSize(plist)")
+        
+        self.nodal_vf_water = self.eocore.create_variable(name='nodal_vf_water',
+                                                          sources=[self.fluid_part],
+                                                          value="ElemToNode(plist, Volume_fraction_water)")
+
+        
+
+        #for i in range(self.tn[0]):
+        self.default_filter = self.eocore.DEFAULTPARTS[self.ensight.PART_FILTER_PART]
+        self.filter = self.default_filter.createpart(name='filter', sources=[self.fluid_part], attributes = [['ELTFILTER1ACTIVE',True],
+                                                                                                           ['ELTFILTER1VARIABLE',self.vf_water],
+                                                                                                           ['ELTFILTER1VARCOMP',self.eonums.VECTOR_MAGNITUDE],
+                                                                                                           ['ELTFILTER1TESTVALUE',0.75],
+                                                                                                           ['ELTFILTER1TESTOP',self.eonums.ELE_FAILED_LESS]])[0]
+        
+        self.ensight.solution_time.show_as("step")
+        self.ensight.solution_time.increment(1)
+        self.ensight.solution_time.update_to_last()
+
+        self.fluid_data_2 = self.fluid_part.get_values([self.coords, self.element_coords, self.element_volume, self.vf_water, self.nodal_vf_water], activate=1)
+        self.fluid_data = self.filter.get_values([self.coords, self.element_coords, self.element_volume, self.vf_water, self.nodal_vf_water, self.cycle_time], activate=1)
+        
+        self.bruh = self.fluid_data[self.coords]*1e6
+        t = self.bruh[:,2] > 465
+        self.bruh = self.bruh[t]
+        clustering = DBSCAN(eps=5,min_samples=2).fit(self.bruh)
 
 
-    def total_flowrate(self):
+        f,ax = plt.subplots(1,2,subplot_kw={"projection": "3d"})
+        ax[0].scatter(xs=self.bruh[:,0],ys=self.bruh[:,1],zs=self.bruh[:,2],c=self.fluid_data[self.nodal_vf_water][t])
+
+        ax[1].scatter(xs=self.bruh[:,0],ys=self.bruh[:,1],zs=self.bruh[:,2],c=clustering.labels_)
+
+        plt.show()
+
+        print('a')
+
+        #print(np.max(self.fluid_data[self.coords][:,2])*1e6,np.min(self.fluid_data[self.coords][:,2])*1e6)
+        
+
+        #self.fluid_data_2 = self.fluid_part.get_values([self.coords, self.vf_water], activate=1)
+
+        
+        #print(np.max(self.fluid_data_2[self.coords][:,2]),np.min(self.fluid_data_2[self.coords][:,2]))
+
+        #with open('coords.npy','wb') as f1, open('vof.npy','wb') as f2:
+        #    np.save(f1,self.fluid_coordinates)
+        '''
+        channel_width = np.linspace(start = -25,
+                        stop = 25,
+                        num = 65)
+        
+        channel_length = np.linspace(start = -250,
+                        stop = 250,
+                        num = 641)
+        
+        z = np.linspace(start = 300,
+                        stop = 550,
+                        num = 321)
+        print('here1')
+        X,Y,Z = np.meshgrid(channel_width,channel_length,z)
+        print('here2')
+
+        interp = LinearNDInterpolator(self.fluid_data[self.coords]*1e6,self.fluid_data[self.nodal_vf_water])
+        print('here3')
+        points = interp(X,Y,Z)
+        print('here4')
+        f,ax = plt.subplots(1,1, subplot_kw={"projection": "3d"})
+        print('here5')
+        ax.scatter(xs=X,ys=Y,zs=Z,c=points)
+        print('here6')
+        '''
+
+
+
+
+    def total_flowrate(self): # TODO
 
         pass
 
@@ -361,19 +451,30 @@ class ensight_class:
             self.ensight.solution_time.step_forward()
     
 
+def self_distance(x):
+    
+    arr = np.zeros(x.shape[0])
 
+    for i,row in enumerate(x):
+        a = np.linalg.norm(x-row,axis=1)
+        arr[i] = np.min(a[np.nonzero(a)])
 
-def post_process(ensight_pp, options = None):
+    return arr
+
+def post_process(ensight_pp, options = None): # TODO
 
     ensight_pp.set_iso_view()
     
-    ensight_pp.velocity_animation()
+    #ensight_pp.velocity_animation()
 
-    ensight_pp.shearrate_animation()
+    #ensight_pp.shearrate_animation()
 
-    ensight_pp.fft_of_surface()
+    #ensight_pp.fft_of_surface()
+
+    ensight_pp.droplet_sizing()
 
 
+# TODO, formalise this part of the script
 parameters = {'frequency' : 1.63e6,
               'amplitude' : 1e-6,
               'n_cycles' : 60,
@@ -382,7 +483,7 @@ parameters = {'frequency' : 1.63e6,
               'grid_size' : 500}
 
 if __name__ == '__main__':
-    session = ens.LocalLauncher(batch=True).start()#, use_egl=True, additional_command_line_options=['-v 5']).start()
+    session = ens.LocalLauncher(batch=True, ansys_installation='C:\\Program Files\\ANSYS Inc\\v251').start()#, use_egl=True, additional_command_line_options=['-v 5']).start()
     
     ensight_pp = ensight_class(session= session, parameters=parameters, fpath='')
 
@@ -394,3 +495,14 @@ else:
         post_process(ensight_pp)
     except:
         pass
+
+'''
+a=libuserd.LibUserd()
+a.initialize()
+b=a.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\data\\test_simple_vibrate-1-00323.cas.h5',
+              result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\postprocessing\\data\\test_simple_vibrate-1-00323.dat.h5',
+              file_format='Fluent_HDF5')
+c=b.parts()
+conn=c[0].element_conn(libuserd.ElementType.HEX08)
+conn.shape = (len(conn)//8, 8)
+'''
