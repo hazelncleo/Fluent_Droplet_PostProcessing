@@ -7,6 +7,7 @@ from sklearn.cluster import DBSCAN
 import matplotlib.cm as cm
 from fft_iso import FFT_ISO
 from scipy.interpolate import LinearNDInterpolator
+import pandas as pd
 
 class ensight_class:
     def __init__(self, parameters, fpath, session = None, ensight = None):
@@ -354,8 +355,9 @@ class ensight_class:
         self.nodal_vf_water = self.eocore.create_variable(name='nodal_vf_water',
                                                           sources=[self.fluid_part],
                                                           value="ElemToNode(plist, Volume_fraction_water)")
-
         
+        
+
 
         #for i in range(self.tn[0]):
         self.default_filter = self.eocore.DEFAULTPARTS[self.ensight.PART_FILTER_PART]
@@ -365,12 +367,20 @@ class ensight_class:
                                                                                                            ['ELTFILTER1TESTVALUE',0.75],
                                                                                                            ['ELTFILTER1TESTOP',self.eonums.ELE_FAILED_LESS]])[0]
         
+
         self.ensight.solution_time.show_as("step")
         self.ensight.solution_time.increment(1)
         self.ensight.solution_time.update_to_last()
 
         self.fluid_data_2 = self.fluid_part.get_values([self.coords, self.element_coords, self.element_volume, self.vf_water, self.nodal_vf_water], activate=1)
         self.fluid_data = self.filter.get_values([self.coords, self.element_coords, self.element_volume, self.vf_water, self.nodal_vf_water, self.cycle_time], activate=1)
+
+        #self.ensight.part.select_begin(1)
+        #a = self.fluid_data['ELEMENT_IDS'][100]
+        #self.ensight.show_info.element(a)
+
+        a = self.ensight.query_parts(parts=[self.fluid_part])
+        print(a)
         
         self.bruh = self.fluid_data[self.coords]*1e6
         t = self.bruh[:,2] > 465
@@ -482,6 +492,7 @@ parameters = {'frequency' : 1.63e6,
               'channel_width' : 50,
               'grid_size' : 500}
 
+
 if __name__ == '__main__':
     session = ens.LocalLauncher(batch=True, ansys_installation='C:\\Program Files\\ANSYS Inc\\v251').start()#, use_egl=True, additional_command_line_options=['-v 5']).start()
     
@@ -489,6 +500,8 @@ if __name__ == '__main__':
 
     post_process(ensight_pp)
 else:
+
+    # TODO BETTER WAY TO CHECK IF ENSIGHT EXISTS
     try:
         ensight_pp = ensight_class(ensight = ensight, parameters = parameters)
 
