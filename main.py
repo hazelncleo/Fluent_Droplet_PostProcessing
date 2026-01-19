@@ -1,9 +1,7 @@
 import ansys.pyensight.core as ens
-#from ansys.pyensight.core import libuserd
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-from sklearn.cluster import DBSCAN
 import matplotlib.cm as cm
 from fft_iso import FFT_ISO
 from scipy.interpolate import LinearNDInterpolator
@@ -372,33 +370,44 @@ class ensight_class:
         pass
 
 
-    def total_flowrate(self): # TODO
+    def total_flowrate(self, plot_results = True): # TODO
+        
+        if not hasattr(self, 'flowrate_query'):
+            self.flowrate_query = self.eoutil.query.create_temporal(
+                name        = 'outlet_water_flowrate',
+                query_type  = self.eoutil.query.TEMPORAL_XYZ,
+                part_list   = [self.fluid_part],
+                variable1   = self.outlet_water_flowrate,
+                variable2   = self.analysis_time,
+                xyz         = [0, 0, 0],
+                new_plotter = False
+            )
 
-        self.flowrate_query = self.eoutil.query.create_temporal(
-            name        = 'outlet_water_flowrate',
-            query_type  = self.eoutil.query.TEMPORAL_XYZ,
-            part_list   = [self.fluid_part],
-            variable1   = self.outlet_water_flowrate,
-            variable2   = self.analysis_time,
-            xyz         = [0, 0, 0],
-            new_plotter = False
-        )
+        # Calculate flowrates
+        raw_flowrate_values = np.array(self.flowrate_query.QUERY_DATA['xydata']).transpose()
+        t                   = np.append(0, raw_flowrate_values[0])
+        dVdt                = np.append(0, (-1 * 1e9 / 997) * raw_flowrate_values[1]) # Flowrate in microlitres
+        V                   = (dVdt[1:] + dVdt[:-1]) * (t[1:] - t[:-1]) / 2
+        V_total             = np.cumsum(V)
+        dVdt_total          = V_total / t[1:]
 
-        flowrate_values = np.array(self.flowrate_query.QUERY_DATA['xydata']).transpose()
-        times = np.insert(flowrate_values[0], 0, 0, axis=0)
-        dt = times[1:] - times[:-1]
-        flowrates = (-1 * 1e9 / 997) * flowrate_values[1]
-        flow = flowrates * dt
-        cumulative_flow = np.cumsum(flow)
-        cumulative_flowrate = cumulative_flow / times[1:]
-
-        f,ax = plt.subplots(1,4)
-        ax[0].plot(times[1:], flowrates)
-        ax[1].plot(times[2:], flow[1:])
-        ax[2].plot(times[1:], cumulative_flow)
-        ax[3].plot(times[1:], cumulative_flowrate)
-        plt.show()
-
+        if plot_results:
+            
+            f,ax = plt.subplots(1,4)
+            
+            
+            ax[0].plot(t[1:], dVdt)
+            ax[2].plot(t[1:], V)
+            ax[1].plot(t[1:], V_total)
+            ax[3].plot(t[1:], dVdt_total)
+            plt.show()
+            return 0
+        else:
+            return np.vstack([t,
+                              dVdt,
+                              V,
+                              V_total,
+                              dVdt_total])            
 
 
     def fft_of_surface(self):
@@ -468,7 +477,6 @@ class ensight_class:
         max_shearrate_values = np.array([row[1] for row in self.max_shearrate_query.QUERY_DATA['xydata']]) 
 
 
-
     def save_data_to_csv(self): # TODO
         
         pass
@@ -500,7 +508,7 @@ class ensight_class:
     -----------------------------
     '''
 
-    def load_data(self):
+    def load_data(self): # TODO
         '''
         Docstring for load_data
         
