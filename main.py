@@ -371,6 +371,12 @@ class ensight_class:
 
 
     def total_flowrate(self, plot_results = True): # TODO
+        '''
+        Docstring for total_flowrate
+        
+        :param self: Description
+        :param plot_results: Description
+        '''
         
         if not hasattr(self, 'flowrate_query'):
             self.flowrate_query = self.eoutil.query.create_temporal(
@@ -387,27 +393,39 @@ class ensight_class:
         raw_flowrate_values = np.array(self.flowrate_query.QUERY_DATA['xydata']).transpose()
         t                   = np.append(0, raw_flowrate_values[0])
         dVdt                = np.append(0, (-1 * 1e9 / 997) * raw_flowrate_values[1]) # Flowrate in microlitres
-        V                   = (dVdt[1:] + dVdt[:-1]) * (t[1:] - t[:-1]) / 2
-        V_total             = np.cumsum(V)
-        dVdt_total          = V_total / t[1:]
+        Vol                 = (dVdt[1:] + dVdt[:-1]) * (t[1:] - t[:-1]) / 2
+        Vol_total           = np.cumsum(Vol)
+        dVdt_total          = Vol_total / t[1:]
 
+        flowrate_results = np.vstack(
+            [
+                t[1:],
+                dVdt[1:],
+                Vol,
+                Vol_total,
+                dVdt_total
+            ]
+        )
+        
         if plot_results:
+            self.flowrate_plot()
             
-            f,ax = plt.subplots(1,4)
+        return flowrate_results             
+
+
+    def flowrate_plot(self, flowrate_results): # TODO
+        '''
+        
+        '''
+        f,ax = plt.subplots(1,4)
             
             
-            ax[0].plot(t[1:], dVdt)
-            ax[2].plot(t[1:], V)
-            ax[1].plot(t[1:], V_total)
-            ax[3].plot(t[1:], dVdt_total)
-            plt.show()
-            return 0
-        else:
-            return np.vstack([t,
-                              dVdt,
-                              V,
-                              V_total,
-                              dVdt_total])            
+        ax[0].plot(flowrate_results[0], flowrate_results[1]) # dVdt vs time
+        ax[2].plot(flowrate_results[0], flowrate_results[2]) # Vol vs time
+        ax[1].plot(flowrate_results[0], flowrate_results[3]) # Vol_total vs time
+        ax[3].plot(flowrate_results[0], flowrate_results[4]) # dVdt_total vs time
+        
+        plt.show()
 
 
     def fft_of_surface(self):
@@ -474,7 +492,9 @@ class ensight_class:
 
         analysis_time_values = np.array([row[1] for row in analysis_time_query.QUERY_DATA['xydata']])
         cycle_time_values    = np.array([row[1] for row in cycle_time_query.QUERY_DATA['xydata']])
-        max_shearrate_values = np.array([row[1] for row in self.max_shearrate_query.QUERY_DATA['xydata']]) 
+        max_shearrate_values = np.array([row[1] for row in self.max_shearrate_query.QUERY_DATA['xydata']])
+        
+        flowrate_values = self.total_flowrate(plot_results = False) 
 
 
     def save_data_to_csv(self): # TODO
@@ -517,10 +537,10 @@ class ensight_class:
     
         if self.sesion_provided:
             
-            #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Simulations\\Fluent_Droplet_PostProcessing\\data\\test_simple_vibrate-1-*.cas.h5',
-            #                    result_file='D:\\Uni_Projects\\PALM_Projects\\Simulations\\Fluent_Droplet_PostProcessing\\data\\test_simple_vibrate-1-*.dat.h5')
-            self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Simulations\\Fluent_Droplet_PostProcessing\\data_droplets\\test_simple_vibrate-1-*.cas.h5',
-                                   result_file='D:\\Uni_Projects\\PALM_Projects\\Simulations\\Fluent_Droplet_PostProcessing\\data_droplets\\test_simple_vibrate-1-*.dat.h5')
+            self.session.load_data(os.path.join(self.cwd,'data','test_simple_vibrate-1-*.cas.h5'),
+                                   result_file=os.path.join(self.cwd,'data','test_simple_vibrate-1-*.dat.h5'))
+            #self.session.load_data(os.path.join(self.cwd,'data_droplets','test_simple_vibrate-1-*.cas.h5'),
+            #                       result_file=os.path.join(self.cwd,'data','test_simple_vibrate-1-*.dat.h5'))
             #self.session.load_data('D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.cas.h5',
             #                       result_file='D:\\Uni_Projects\\PALM_Projects\\Testing\\Working_Geometry_Testing\\adaptive_64\\test_simple_vibrate-1-*.dat.h5')
 
