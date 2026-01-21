@@ -6,9 +6,10 @@ Tool to easily automate post-processing of PALM CFD models.
 
 # TODO
 
-- documentatioon
+- documentation
 - improve performance
 - multi-platform (windows, linux)
+- change how current working directory and saving directories works
 
 
 
