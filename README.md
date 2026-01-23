@@ -7,17 +7,11 @@ Tool to easily automate post-processing of PALM CFD models.
 # TODO
 
 - documentation
+- tests
 - improve performance
-- multi-platform (windows, linux)
-- change how current working directory and saving directories works
+- multi-platform (windows, linux) kinda works?
+- make it so that a folder can be passed instead of chosen during runtime for hpc runs
 
-
-
-
-- load data method
-- post process controller method
 - droplet sizing fluent script (C or C++)
 - get output data method
-- save output data to csv method
-- finish total flowrate method
 - basic animation method

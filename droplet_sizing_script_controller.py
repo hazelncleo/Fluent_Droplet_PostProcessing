@@ -2,7 +2,7 @@ import warnings
 
 with warnings.catch_warnings():
     warnings.simplefilter('ignore')
-    import ansys.fluent.core as pyfluent
+    #import ansys.fluent.core as pyfluent
     warnings.simplefilter("default")
 
 class DropletSizingScriptController:

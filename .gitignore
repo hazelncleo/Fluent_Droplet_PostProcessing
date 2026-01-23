@@ -5,3 +5,4 @@
 *.png
 *.pyc
 old/
+__pycache__/

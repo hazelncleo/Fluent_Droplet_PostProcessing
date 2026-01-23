@@ -51,7 +51,7 @@ class PostProcessor:
         root.lift()
         root.attributes("-topmost", True)
         
-        self.folder = askdirectory(title = 'Select folder to read .cas.h5 & .dat.h5 files from: ', initialdir = os.path.abspath(os.getcwd()))
+        self.folder = os.path.abspath(askdirectory(title = 'Select folder to read .cas.h5 & .dat.h5 files from: ', initialdir = os.path.abspath(os.getcwd())))
         root.destroy()
 
         if not self.folder: 
@@ -99,7 +99,7 @@ class PostProcessor:
                 ),
                 inquirer.List(
                     name     = 'flowrate_options',
-                    message  = 'Select the post-processing type for the ' + blue_text('flowrate') + 'calculations',
+                    message  = 'Select the post-processing type for the ' + blue_text('flowrate') + ' calculations',
                     choices  = further_choices,
                     carousel = True,
                     ignore   = lambda x: 'Flowrate' not in x['options'] 
@@ -182,7 +182,7 @@ class PostProcessor:
         '''
 
         
-        fpath = os.path.join(self.cwd, 'output', 'output_data.csv')
+        fpath = os.path.join(self.folder, 'output', 'output_data.csv')
         
         if os.path.exists(fpath):
             print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'output_data.csv'))))

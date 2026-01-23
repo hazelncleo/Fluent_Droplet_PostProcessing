@@ -24,7 +24,8 @@ class EnsightController:
         # TODO: ansys installation will need to change 
         # HPC: '/apps/ansys/24r2/v242'
         # Workstation: 'C:\\Program Files\\ANSYS Inc\\v251'
-        session = ens.LocalLauncher(batch = True, ansys_installation = '/apps/ansys/24r2/v242', use_egl=True, additional_command_line_options=['-v 5']).start()
+        session = ens.LocalLauncher(batch = True, ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251').start()#, use_egl=True).start()
+        
 
         self.session = session
         self.ensight = self.session.ensight
