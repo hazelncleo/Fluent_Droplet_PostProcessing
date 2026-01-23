@@ -1,44 +1,33 @@
-import ansys.pyensight.core as ens
+import warnings
+
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    import ansys.pyensight.core as ens
+    warnings.simplefilter("default")
+
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 import glob
 from HazelsAwesomeTheme import red_text,green_text,blue_text,yellow_text
 import pandas as pd
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
 
-from droplet_sizing_script_controller import DropletSizingScriptController
-from post_processor import PostProcessor
-from ensight_controller import EnsightController
 from fft_iso import FFT_ISO
 
 class EnsightController:
-    def __init__(
-        self, 
-        parameters, 
-        fpath, 
-        session = None, 
-        ensight = None
-    ):
+    def __init__(self, parameters, folder):
+        self.folder     = folder
+        self.parameters = parameters
 
+    def start_ensight(self):
 
-        if session is not None:
-            if ensight is not None:
-                print(yellow_text('Warning: Both Ensight and Session Object Provided, using session object'))
+        # TODO: ansys installation will need to change 
+        # HPC: '/apps/ansys/24r2/v242'
+        # Workstation: 'C:\\Program Files\\ANSYS Inc\\v251'
+        session = ens.LocalLauncher(batch = True, ansys_installation = '/apps/ansys/24r2/v242', use_egl=True, additional_command_line_options=['-v 5']).start()
 
-            self.session         = session
-            self.ensight         = self.session.ensight
-            self.sesion_provided = True
-
-        elif ensight is not None:
-
-            self.ensight         = ensight
-            self.sesion_provided = False
-
-        else:
-            raise ValueError(red_text('ERROR: No session or ensight object specified'))
-
+        self.session = session
+        self.ensight = self.session.ensight
 
         self.eocore     = self.ensight.objs.core
         self.eonums     = self.ensight.objs.enums
@@ -46,7 +35,6 @@ class EnsightController:
         self.parts      = self.ensight.utils.parts
         self.views      = self.ensight.utils.views
         self.query      = self.ensight.utils.query
-        self.parameters = parameters
         self.cwd        = os.getcwd()
         
         self.load_data()
@@ -227,66 +215,18 @@ class EnsightController:
         :param self: Description
         '''
 
-        fpath = self.get_file_path()
+        files = self.get_files()
     
-        if self.sesion_provided:
-            self.session.load_data(fpath + '.cas.h5', result_file = fpath + '.dat.h5')
-        else:
-            # If script run through ensight batch job then this method must be used to load data
-            self.ensight.part.select_default()
-            self.ensight.part.modify_begin()
-            self.ensight.part.elt_representation("3D_feature_2D_full")
-            self.ensight.part.modify_end()
-            self.ensight.data.binary_files_are("native")
-            self.ensight.data.format("Fluent_HDF5")
-            self.ensight.data.reader_option("'Load Internal Parts' OFF")
-            self.ensight.data.reader_option("'Load _M1 _M2 vars' OFF")
-            self.ensight.data.reader_option("'Load all cell types' OFF")
-            self.ensight.data.reader_option("'Poly to Regular Cell' ON")
-            self.ensight.data.reader_option("'Poly faced Hex to Poly' OFF")
-            self.ensight.data.reader_option("'Fix Hanging Nodes' ON")
-            self.ensight.data.reader_option("'Use Zone IDs for Parts' OFF")
-            self.ensight.data.reader_option("'Show Fluent Variable Display Name' ON")
-            self.ensight.data.reader_option("'Enable Part Grouping' OFF")
-            self.ensight.data.reader_option("'Console Output' 'Normal'")
-            self.ensight.data.reader_option("'Time Values' 'Read Time Values'")
-            self.ensight.data.result(fpath + '.dat.h5')
-            self.ensight.data.shift_time(1.000000, 0.000000, 0.000000)
-            self.ensight.solution_time.monitor_for_new_steps("off")
-            self.ensight.data.replace(fpath + '.cas.h5')
-            self.ensight.command.delay_refresh("ON")
+        self.session.load_data(files + '.cas.h5', result_file = files + '.dat.h5')
 
 
-    def get_file_path(self):
+    def get_files(self):
         '''
-        ---------------------------------------------------
-        Prompt the user to select a folder containing the fluent results data (.cas.h5 & .dat.h5)
-        ---------------------------------------------------
-        RETURNS
-        ---------------------------------------------------
-        file_path : str
-            A string pointing to the folder the user selected with a wildcard version of the files to be read
-        ---------------------------------------------------
-        '''
-
-        # Create window and remove from view
-        root = Tk()
-        root.iconbitmap('cade.ico')
-        root.overrideredirect(1)
-        root.geometry('0x0+0+0')
-        root.withdraw()
-        root.lift()
-        root.attributes("-topmost", True)
+        Finds the file with shortest file name with extension .cas.h5 in the selected data folder.
         
-        # Get filepath from askdirectory dialog
-        fpath = askdirectory(title = 'Select folder to read .cas.h5 & .dat.h5 files from: ', initialdir=os.path.abspath(self.cwd))
-        root.destroy()
-
-        file_path = min(glob.glob(os.path.join(fpath,'*.cas.h5')), key=lambda x: len(os.path.basename(x)))[:-7]
-
-        file_path += '-*'
-
-        return file_path
+        A fluent run using the case file ''
+        '''
+        return min(glob.glob(os.path.join(self.folder,'*.cas.h5')), key=lambda x: len(os.path.basename(x)))[:-7] + '-*'
 
 
     def init_variables(self):
@@ -681,53 +621,6 @@ class EnsightController:
             
             fft_calculator.solve(data=self.iso_surface_coordinates, time_data=[self.eocore.TIMESTEP+1,self.eocore.SOLUTIONTIME])
 
-            fft_calculator.full_plot(f'FFT Plot t={i}', f'.\\images\\iso_plot_{int(self.eocore.TIMESTEP+1)}.png')
+            fft_calculator.full_plot(f'FFT Plot t={i}', os.path.join('.', 'images', f'iso_plot_{int(self.eocore.TIMESTEP+1)}.png'))
             
             self.ensight.solution_time.step_forward()
-
-    '''
-    -----------------------------
-    '''
-
-    def save_data_to_csv(self):
-        '''
-        Docstring for save_data_to_csv
-        
-        :param self: Description
-        '''
-
-        os.makedirs('output', exist_ok=True)
-        fpath = os.path.join(self.cwd, 'output', 'output_data.csv')
-        
-        if os.path.exists(fpath):
-            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'output_data.csv'))))
-
-        self.results_data.to_csv(fpath)
-        
-    '''
-    -------------------------
-        Control functions
-    -------------------------
-    '''
-
-    def post_process(self, options = None): # TODO
-        '''
-        Data columns:
-            time,
-            cycle_time,
-            max_shearrate,
-            total_volume_delivered,
-            volumetric_flowrate,
-            fpf,
-            dv10,
-            dv50,
-            dv90
-        '''
-
-        self.set_iso_view()
-        
-        self.shearrate_calculation(plot_results = False, animate_results = False)
-        
-        self.flowrate_calculation(plot_results = False, animate_results = False)
-
-        self.save_data_to_csv()

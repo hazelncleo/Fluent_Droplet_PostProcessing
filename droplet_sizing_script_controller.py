@@ -1,20 +1,16 @@
-import ansys.pyensight.core as ens
-import numpy as np
-import os
-import matplotlib.pyplot as plt
-import glob
-from fft_iso import FFT_ISO
-from HazelsAwesomeTheme import red_text,green_text,blue_text,yellow_text
-import pandas as pd
-from tkinter import Tk
-from tkinter.filedialog import askdirectory
+import warnings
 
+with warnings.catch_warnings():
+    warnings.simplefilter('ignore')
+    import ansys.fluent.core as pyfluent
+    warnings.simplefilter("default")
 
 class DropletSizingScriptController:
-    def __init__(self):
-        pass
+    def __init__(self, parameters, folder):
+        self.parameters = parameters
+        self.folder = folder
 
-    def droplet_sizing_calculation(self, plot_results = False): # TODO
+    def droplet_sizing_calculation(self, plot_results = False, animate_results = False): # TODO
         '''
         Docstring for droplet_sizing
         
@@ -24,5 +20,9 @@ class DropletSizingScriptController:
 
 
     def droplet_sizing_plot(self): # TODO
+        pass
+
+
+    def droplet_sizing_animation(self): # TODO
         pass
 
