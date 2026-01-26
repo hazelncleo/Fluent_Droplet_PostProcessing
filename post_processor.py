@@ -60,7 +60,7 @@ class PostProcessor:
 
     def prompt_for_options(self):
 
-        base_choices = [
+        postprocessing_choices = [
             'Droplet sizing',
             'General animation',
             'Shearrate',
@@ -69,38 +69,38 @@ class PostProcessor:
             'FFT'
         ]
 
-        further_choices = [
+        type_of_postprocessing = [
             'Calculation',
             'Plot',
             'Animation'
         ]
 
-        answers = inquirer.prompt(
+        selected_answers = inquirer.prompt(
             questions = [
                 inquirer.Checkbox(
                     name     = 'options',
                     message  = 'Select the post-processing options to apply to the data selected',
-                    choices  = base_choices,
+                    choices  = postprocessing_choices,
                     carousel = True
                 ),
                 inquirer.List(
                     name     = 'droplet_options',
                     message  = 'Select the post-processing type for the ' + blue_text('droplet sizing') + ' script',
-                    choices  = further_choices,
+                    choices  = type_of_postprocessing,
                     carousel = True,
                     ignore   = lambda x: 'Droplet sizing' not in x['options'] 
                 ),
                 inquirer.List(
                     name     = 'shearrate_options',
                     message  = 'Select the post-processing type for the ' + blue_text('shearrate') + ' calculations',
-                    choices  = further_choices,
+                    choices  = type_of_postprocessing,
                     carousel = True,
                     ignore   = lambda x: 'Shearrate' not in x['options'] 
                 ),
                 inquirer.List(
                     name     = 'flowrate_options',
                     message  = 'Select the post-processing type for the ' + blue_text('flowrate') + ' calculations',
-                    choices  = further_choices,
+                    choices  = type_of_postprocessing,
                     carousel = True,
                     ignore   = lambda x: 'Flowrate' not in x['options'] 
                 )
@@ -108,14 +108,14 @@ class PostProcessor:
             theme = HazelsAwesomeTheme()
         )
 
-        if answers is None:
+        if selected_answers is None:
             raise ValueError(red_text('The options selected were not valid'))
         
-        self.options = {choice : (choice in answers['options']) for choice in base_choices}
+        self.options = {choice : (choice in selected_answers['options']) for choice in base_choices}
 
-        if self.options['Droplet sizing']: self.options['Droplet sizing'] = answers['droplet_options']
-        if self.options['Shearrate']:      self.options['Shearrate']      = answers['shearrate_options']
-        if self.options['Flowrate']:       self.options['Flowrate']       = answers['flowrate_options']
+        if self.options['Droplet sizing']: self.options['Droplet sizing'] = selected_answers['droplet_options']
+        if self.options['Shearrate']:      self.options['Shearrate']      = selected_answers['shearrate_options']
+        if self.options['Flowrate']:       self.options['Flowrate']       = selected_answers['flowrate_options']
 
 
     def post_process(self, options = None): # TODO
@@ -138,7 +138,7 @@ class PostProcessor:
             print(yellow_text('No post-processing options selected, closing program.'))
             return
         
-        os.makedirs(os.path.join(self.folder,'output'), exist_ok=True)
+        os.makedirs(os.path.join(self.folder,'output'), exist_ok = True)
 
         # run droplet sizing fluent script
         if self.options['Droplet sizing']:
