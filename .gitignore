@@ -6,3 +6,4 @@
 *.pyc
 old/
 __pycache__/
+quick_plotter.py
