@@ -1,5 +1,6 @@
 from post_processor import PostProcessor
-
+import sys
+import os
 
 # TODO, formalise this part of the script
 parameters = {
@@ -13,6 +14,14 @@ parameters = {
 
 
 if __name__ == '__main__':
-    post_processor = PostProcessor(parameters)
-
+    
+    if (len(sys.argv) - 1) and os.path.isdir(sys.argv[1]):
+        
+        cmd_line_specified_folder = os.path.abspath(sys.argv[1])
+        post_processor = PostProcessor(parameters = parameters, folder = cmd_line_specified_folder)
+        
+    else:
+        post_processor = PostProcessor(parameters = parameters)
+    
     post_processor.post_process()
+    

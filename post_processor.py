@@ -12,7 +12,7 @@ class PostProcessor:
     '''
     
     '''
-    def __init__(self, parameters):
+    def __init__(self, parameters, folder = None):
         '''
         Docstring for __init__
         
@@ -21,7 +21,10 @@ class PostProcessor:
         '''
         self.parameters = parameters
 
-        self.select_data_folder()
+        if folder:
+            self.folder = folder
+        else:
+            self.select_data_folder()
 
         self.droplet_sizer = DropletSizingScriptController(self.parameters, self.folder)
 
@@ -111,7 +114,7 @@ class PostProcessor:
         if selected_answers is None:
             raise ValueError(red_text('The options selected were not valid'))
         
-        self.options = {choice : (choice in selected_answers['options']) for choice in base_choices}
+        self.options = {choice : (choice in selected_answers['options']) for choice in postprocessing_choices}
 
         if self.options['Droplet sizing']: self.options['Droplet sizing'] = selected_answers['droplet_options']
         if self.options['Shearrate']:      self.options['Shearrate']      = selected_answers['shearrate_options']
