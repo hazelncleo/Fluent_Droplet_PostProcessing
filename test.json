@@ -1,0 +1,8 @@
+{
+    "Droplet sizing": false,
+    "General animation": false,
+    "Shearrate": "Calculation",
+    "Velocity animation": false,
+    "Flowrate": "Calculation",
+    "FFT": false
+}

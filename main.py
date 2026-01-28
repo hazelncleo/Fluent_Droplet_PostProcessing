@@ -1,6 +1,7 @@
 from post_processor import PostProcessor
 import sys
 import os
+import json
 
 # TODO, formalise this part of the script
 parameters = {
@@ -15,10 +16,23 @@ parameters = {
 
 if __name__ == '__main__':
     
+    # Check for folder specification TODO: Clean this up to be bug free
     if (len(sys.argv) - 1) and os.path.isdir(sys.argv[1]):
         
         cmd_line_specified_folder = os.path.abspath(sys.argv[1])
-        post_processor = PostProcessor(parameters = parameters, folder = cmd_line_specified_folder)
+
+        # Check if options .json provided
+        if (len(sys.argv) - 2) and os.path.isfile(sys.argv[2]) and sys.argv[2].endswith('.json'):
+
+            with open(sys.argv[2]) as options_file:
+                options = json.load(options_file)
+
+            post_processor = PostProcessor(parameters = parameters, folder = cmd_line_specified_folder, options = options)
+
+        else:
+            post_processor = PostProcessor(parameters = parameters, folder = cmd_line_specified_folder)
+
+    
         
     else:
         post_processor = PostProcessor(parameters = parameters)

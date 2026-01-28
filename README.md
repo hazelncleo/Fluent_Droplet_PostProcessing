@@ -4,6 +4,12 @@ Tool to easily automate post-processing of PALM CFD models.
 
 # Work In Progress
 
+# Stuff to try on HPC
+
+- SOS with wildcards evaluated and temporal decomposition
+- just using mpi?
+- SOS & mpi potentially?
+
 # TODO
 
 - documentation

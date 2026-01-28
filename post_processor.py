@@ -1,6 +1,7 @@
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 import pandas as pd
+import json
 import os
 import inquirer
 from HazelsAwesomeTheme import HazelsAwesomeTheme, blue_text, yellow_text, red_text, green_text
@@ -12,7 +13,7 @@ class PostProcessor:
     '''
     
     '''
-    def __init__(self, parameters, folder = None):
+    def __init__(self, parameters, folder = None, options = None):
         '''
         Docstring for __init__
         
@@ -20,6 +21,7 @@ class PostProcessor:
         :param parameters: Description
         '''
         self.parameters = parameters
+        self.options    = options
 
         if folder:
             self.folder = folder
@@ -123,7 +125,7 @@ class PostProcessor:
         if self.options['Flowrate']:       self.options['Flowrate']       = selected_answers['flowrate_options']
 
 
-    def post_process(self, options = None): # TODO
+    def post_process(self):
         '''
         Data columns:
             time,
@@ -136,8 +138,10 @@ class PostProcessor:
             dv50,
             dv90
         '''
-
-        self.prompt_for_options()
+        if self.options is None:
+            self.prompt_for_options()
+        else:
+            print('Options specified by file.')
 
         if not any(self.options.values()):
             print(yellow_text('No post-processing options selected, closing program.'))
