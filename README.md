@@ -8,10 +8,9 @@ Tool to easily automate post-processing of PALM CFD models.
 
 - documentation
 - tests
-- improve performance
-- multi-platform (windows, linux) kinda works?
-- make it so that a folder can be passed instead of chosen during runtime for hpc runs
+- improve performance, getting there, just need to figure out how to get it working in batch mode
+- multi-platform (windows, linux), needs correct handling of ansys installation path
+- figure out way to pass parameters when running batch on hpc
 
 - droplet sizing fluent script (C or C++)
-- get output data method
 - basic animation method

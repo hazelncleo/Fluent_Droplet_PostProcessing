@@ -22,9 +22,14 @@ class EnsightController:
     def start_ensight(self):
 
         # TODO: ansys installation will need to change 
-        # HPC: '/apps/ansys/24r2/v242'
-        # Workstation: 'C:\\Program Files\\ANSYS Inc\\v251'
-        session = ens.LocalLauncher(batch = True, ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251').start()#, use_egl=True).start()
+        # HPC: ansys_installation = '/apps/ansys/24r2/v242', use_egl = True
+        # Workstation: ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251'
+        session = ens.LocalLauncher(
+            batch              = True, 
+            ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251', 
+            use_sos            = 10, # Number of servers will have to be set by an arguement on the batch run
+            use_mpi            = 'openmpi' # Supposedly this does not work on windows, will test soon
+        ).start()
         
 
         self.session = session
@@ -58,6 +63,8 @@ class EnsightController:
         self.init_parts()
 
         self.init_variables()
+
+        print(green_text('Ensight Instance initialised'))
 
     '''
     ------------------------
@@ -217,8 +224,16 @@ class EnsightController:
         '''
 
         files = self.get_files()
-    
+
+        print('Loading data into ensight')
+
+        # Seems to work ok on linux without these???
+        self.ensight.data.sos_pass_wildcards("NO")
+        self.ensight.data.sos_decompose_type('Temporal')
+
         self.session.load_data(files + '.cas.h5', result_file = files + '.dat.h5')
+
+        print('Data loaded into ensight')
 
 
     def get_files(self):
@@ -365,7 +380,7 @@ class EnsightController:
 
     def basic_animation(self): # TODO
 
-        pass
+        print(green_text('Basic animation completed'))
 
     '''
     -----------------------------
@@ -425,6 +440,8 @@ class EnsightController:
 
         self.set_default_view()
 
+        print(green_text('Velocity animation completed'))
+
     '''
     -----------------------------
     '''
@@ -445,11 +462,17 @@ class EnsightController:
 
             self.results_data['max_shearrate'] = raw_shearrate_values
 
+            print(green_text('Max shearrate calculation completed'))
+
         if plot_results:
             self.shearrate_plot()
 
+            print(green_text('Max shearrate plotting completed'))
+
         if animate_results:
             self.shearrate_animation()
+
+            print(green_text('Max shearrate animation completed'))
 
 
     def shearrate_plot(self): # TODO
@@ -579,12 +602,18 @@ class EnsightController:
 
             self.results_data['total_volume_delivered']  = total_volume_delivered
             self.results_data['volumetric_flowrate']     = volumetric_flowrate
+
+            print(green_text('Outlet flowrate calculation completed'))
         
         if plot_results:
             self.flowrate_plot()
 
+            print(green_text('Outlet flowrate plotting completed'))
+
         if animate_results:
             self.flowrate_animation()
+
+            print(green_text('Outlet flowrate animation completed'))
 
 
     def flowrate_plot(self): # TODO
@@ -625,3 +654,5 @@ class EnsightController:
             fft_calculator.full_plot(f'FFT Plot t={i}', os.path.join('.', 'images', f'iso_plot_{int(self.eocore.TIMESTEP+1)}.png'))
             
             self.ensight.solution_time.step_forward()
+
+        print(green_text('FFT of fluid surface completed'))

@@ -54,11 +54,13 @@ class PostProcessor:
         root.lift()
         root.attributes("-topmost", True)
         
-        self.folder = os.path.abspath(askdirectory(title = 'Select folder to read .cas.h5 & .dat.h5 files from: ', initialdir = os.path.abspath(os.getcwd())))
+        self.folder = askdirectory(title = 'Select folder to read .cas.h5 & .dat.h5 files from: ', initialdir = os.path.abspath(os.getcwd()))
         root.destroy()
 
         if not self.folder: 
             raise FileExistsError(red_text('A folder was not selected.'))
+        
+        self.folder = os.path.abspath(self.folder)
 
 
     def prompt_for_options(self):
