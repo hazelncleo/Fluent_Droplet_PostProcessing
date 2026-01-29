@@ -1,7 +1,6 @@
 from tkinter import Tk
 from tkinter.filedialog import askdirectory
 import pandas as pd
-import json
 import os
 import inquirer
 from HazelsAwesomeTheme import HazelsAwesomeTheme, blue_text, yellow_text, red_text, green_text

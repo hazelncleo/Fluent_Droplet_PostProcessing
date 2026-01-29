@@ -22,14 +22,19 @@ class EnsightController:
     def start_ensight(self):
         
         # TODO: ansys installation will need to change 
-        # HPC: ansys_installation = '/apps/ansys/24r2/v242', use_egl = True, use_mpi = 'openmpi'  
+        # HPC: ansys_installation = '/apps/ansys/24r2/v242', use_egl = True, use_mpi = 'openmpi', use_sos = 10  
         # MPI IS A MAYBE?? DOESNT SEEM TO WORK
         # Workstation: ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251'
         session = ens.LocalLauncher(
             batch              = True, 
             ansys_installation = '/apps/ansys/24r2/v242',
-            use_egl            = True, 
-            use_sos            = 10 # Number of servers will have to be set by an argument on the batch run
+            use_sos = 5,
+            additional_command_line_options = [
+                '--rsh', 'ssh',
+                '--np',  '5',
+                '--mpi', 'openmpi',
+                '-X'
+            ]
         ).start()
         
 

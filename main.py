@@ -27,14 +27,17 @@ if __name__ == '__main__':
             with open(sys.argv[2]) as options_file:
                 options = json.load(options_file)
 
+            print('Executing with: \nParameters = {}\nFolder = {}\nOptions = {}'.format(parameters, cmd_line_specified_folder, options))
             post_processor = PostProcessor(parameters = parameters, folder = cmd_line_specified_folder, options = options)
 
         else:
+            print('Executing with: \nParameters = {}\nFolder = {}'.format(parameters, cmd_line_specified_folder))
             post_processor = PostProcessor(parameters = parameters, folder = cmd_line_specified_folder)
 
     
         
     else:
+        print('Executing with: \nParameters = {}'.format(parameters))
         post_processor = PostProcessor(parameters = parameters)
     
     post_processor.post_process()
