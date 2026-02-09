@@ -22,12 +22,12 @@ class EnsightController:
     def start_ensight(self):
         
         # TODO: ansys installation will need to change 
-        # HPC: ansys_installation = '/apps/ansys/24r2/v242', use_egl = True, use_mpi = 'openmpi', use_sos = 10  
+        # HPC: ansys_installation = '/apps/ansys/25r1/v251', use_egl = True, use_mpi = 'openmpi', use_sos = 10  
         # MPI IS A MAYBE?? DOESNT SEEM TO WORK
         # Workstation: ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251'
         session = ens.LocalLauncher(
             batch              = True, 
-            ansys_installation = '/apps/ansys/24r2/v242',
+            ansys_installation = '/apps/ansys/25r1/v251',
             use_sos = 5,
             additional_command_line_options = [
                 '--rsh', 'ssh',
@@ -41,13 +41,13 @@ class EnsightController:
         self.session = session
         self.ensight = self.session.ensight
 
-        self.eocore     = self.ensight.objs.core
-        self.eonums     = self.ensight.objs.enums
-        self.eoutil     = self.ensight.utils
-        self.parts      = self.ensight.utils.parts
-        self.views      = self.ensight.utils.views
-        self.query      = self.ensight.utils.query
-        self.cwd        = os.getcwd()
+        self.eocore = self.ensight.objs.core
+        self.eonums = self.ensight.objs.enums
+        self.eoutil = self.ensight.utils
+        self.parts  = self.ensight.utils.parts
+        self.views  = self.ensight.utils.views
+        self.query  = self.ensight.utils.query
+        self.cwd    = os.getcwd()
         
         self.load_data()
 
@@ -397,17 +397,18 @@ class EnsightController:
         self.velocity_iso_part = self.iso_default.createpart(
             name       = "velocity_iso", 
             sources    = self.fluid_part, 
-            attributes = {
-                            'VARIABLE'       : self.vf_water,
-                            'COLORBYPALETTE' : self.velocity
-                         }
+            attributes = [
+                ['VARIABLE',       self.vf_water],
+                ['COLORBYPALETTE', self.velocity]
+            ]
         )[0]
 
-        self.fluid_part.VISIBLE    = False
-        self.symmetry_part.VISIBLE = False
-        self.outlet_part.VISIBLE   = False
-        self.velocity_palette      = self.velocity.PALETTE['Velocity<\\\\units>'][0]
-        self.velocity_legend       = self.velocity.LEGEND['Velocity<\\\\units>'][0]
+        self.fluid_part.VISIBLE          = False
+        self.symmetry_part.VISIBLE       = False
+        self.outlet_part.VISIBLE         = False
+        self.solid_coupling_part.VISIBLE = True
+        self.velocity_palette            = self.velocity.PALETTE['Velocity<\\\\units>'][0]
+        self.velocity_legend             = self.velocity.LEGEND['Velocity<\\\\units>'][0]
 
         self.solid_coupling_part.setattrs(
             {
@@ -498,7 +499,8 @@ class EnsightController:
                 ['VARIABLE',   self.vf_water],
                 ['TYPE',       self.eonums.ISO_SURF_SOLID],
                 ['CONSTRAINT', self.eonums.CLIP_CHOICE_GREATER]
-                ])[0]
+            ]
+        )[0]
         
         self.shearrate_iso_part.COLORBYPALETTE = self.shearrate
         self.fluid_part.VISIBLE                = False
