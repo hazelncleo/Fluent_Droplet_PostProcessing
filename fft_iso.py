@@ -138,7 +138,7 @@ class FFT_ISO:
         
         :param self: Description
         '''
-        self.raw_data[:,2] -= np.mean(self.raw_data[:,2])
+        self.raw_data -= np.mean(self.raw_data, axis = 1)
     
     
     def interpolate_data(self):
