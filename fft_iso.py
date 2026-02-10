@@ -14,7 +14,7 @@ class FFT_ISO:
             'frequency'           : 1.63e6,
             'amplitude'           : 1e-6,
             'n_cycles'            : 60,
-            'n_levels_refinement' : 4,
+            'n_levels_refinement' : 5,
             'channel_width'       : 50,
             'grid_size'           : 500
         },
@@ -44,9 +44,9 @@ class FFT_ISO:
         })
         
         self.sampling_data.update({
-            'sample_spacing'        : parameters['grid_size'] / self.sampling_data['elements_along_length'],
-            'n_samples_width'       : self.sampling_data['elements_along_width'] + 1,
-            'n_samples_length'      : self.sampling_data['elements_along_length'] + 1
+            'sample_spacing'   : parameters['grid_size'] / self.sampling_data['elements_along_length'],
+            'n_samples_width'  : self.sampling_data['elements_along_width'] + 1,
+            'n_samples_length' : self.sampling_data['elements_along_length'] + 1
         })
         
         self.data_loaded          = False
@@ -138,7 +138,7 @@ class FFT_ISO:
         
         :param self: Description
         '''
-        self.raw_data -= np.mean(self.raw_data, axis = 1)
+        self.raw_data = self.raw_data - np.mean(self.raw_data, axis = 0)
     
     
     def interpolate_data(self):
@@ -146,7 +146,7 @@ class FFT_ISO:
         Interpolate the raw data onto a cartesian grid.
         '''
         
-        interpolator = LinearNDInterpolator(self.raw_data[:,:2], self.raw_data[:,2])
+        interpolator = LinearNDInterpolator(self.raw_data[:,:2], self.raw_data[:,2], fill_value = 0)
         
         self.data = {
             'vertical'   : interpolator(self.meshes['vertical_x_mesh'], self.meshes['vertical_y_mesh']),
@@ -345,9 +345,9 @@ class FFT_ISO:
 
         
         ax[0,0].pcolormesh(
-                   self.meshes['vertical_x_mesh'],
-                   self.meshes['vertical_y_mesh'],
-                   self.data['vertical'],
+            self.meshes['vertical_x_mesh'],
+            self.meshes['vertical_y_mesh'],
+            self.data['vertical'],
             cmap = self.cmap_deform,
             vmin = height_cmap_min,
             vmax = height_cmap_max
@@ -487,3 +487,11 @@ class FFT_ISO:
     
     def output_data(self): # TODO
         pass
+
+if __name__ == '__main__':
+    fft_iso = FFT_ISO()
+    import glob ; files = glob.glob('fft/*.npy')
+    
+    for i,f in enumerate(files):
+        fft_iso.solve(file = f)
+        fft_iso.full_plot(f, f'plot_{i}.png')
