@@ -248,7 +248,7 @@ class EnsightController:
         
         A fluent run using the case file ''
         '''
-        return min(glob.glob(os.path.join(self.folder,'*.cas.h5')), key=lambda x: len(os.path.basename(x)))[:-7] + '-*'
+        return min(glob.glob(os.path.join(self.folder,'*.cas.h5')), key=lambda x: len(os.path.basename(x)))[:-7] + '-1-*'
 
 
     def init_variables(self):

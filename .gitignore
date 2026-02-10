@@ -5,5 +5,6 @@
 *.png
 *.pyc
 old/
+.venv/
 __pycache__/
 .vscode/

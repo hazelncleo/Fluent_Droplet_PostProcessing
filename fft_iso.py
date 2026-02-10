@@ -104,7 +104,7 @@ class FFT_ISO:
         NOTE: Either a numpy array of the data or a filepath pointing to a .npy file can be provided (Either of these is required)
         '''
         
-        if data:
+        if data is not None:
             if file:
                 print(yellow_text('Both Data and a File were provided, using the data for subsequent calculations.'))
         elif file:
