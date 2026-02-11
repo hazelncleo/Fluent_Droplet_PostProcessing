@@ -5,6 +5,7 @@ with warnings.catch_warnings():
     import ansys.pyensight.core as ens
     warnings.simplefilter("default")
 
+import time
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -27,14 +28,12 @@ class EnsightController:
         # Workstation: ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251'
         session = ens.LocalLauncher(
             batch              = True, 
-            ansys_installation = '/apps/ansys/25r1/v251',
-            use_sos = 5,
-            additional_command_line_options = [
-                '--rsh', 'ssh',
-                '--np',  '5',
-                '--mpi', 'openmpi',
-                '-X'
-            ]
+            ansys_installation = '/apps/ansys/25r1/v251'#,
+        #    additional_command_line_options = ['-X']#,
+        #    use_sos = 2,
+        #    use_egl = True,
+        #    use_mpi = 'intel2021',
+        #    interconnect = 'ethernet'
         ).start()
         
 
@@ -201,10 +200,10 @@ class EnsightController:
 
         self.ensight.solution_time.update_to_first()
         self.ensight.file.animation_rend_offscreen("ON")
-        self.ensight.file.animation_numpasses(4)
+        self.ensight.file.animation_numpasses(16)
         self.ensight.file.animation_stereo("current")
         self.ensight.file.animation_screen_tiling(1,1)
-        self.ensight.file.animation_file(fr"""D:\Uni_Projects\PALM_Projects\Testing\Working_Geometry_Testing\postprocessing\{fname} """)
+        self.ensight.file.animation_file(os.path.join(self.folder, 'output', fname))
         self.ensight.file.animation_window_size("user_defined")
         self.ensight.file.animation_window_xy(3840,2160)
         self.ensight.solution_time.increment(1)
@@ -232,14 +231,17 @@ class EnsightController:
         files = self.get_files()
 
         print('Loading data into ensight')
+        start_time = time.time()
 
         # Seems to work ok on linux without these???
-        self.ensight.data.sos_pass_wildcards("NO")
-        self.ensight.data.sos_decompose_type('Temporal')
+        #self.ensight.data.sos_pass_wildcards("NO")
+        #self.ensight.data.sos_decompose_type('Temporal')
+        #self.ensight.data.sos_auto_distrib('dont')
 
         self.session.load_data(files + '.cas.h5', result_file = files + '.dat.h5')
+        end_time = time.time()
 
-        print('Data loaded into ensight')
+        print(f'Data loaded into ensight after: {(end_time-start_time):.2f}s')
 
 
     def get_files(self):
@@ -384,9 +386,51 @@ class EnsightController:
     ---------------------------------------
     '''
 
-    def basic_animation(self): # TODO
+    def basic_animation(self):
+
+        self.basic_iso_part = self.iso_default.createpart(
+            name       = "basic_iso", 
+            sources    = self.fluid_part, 
+            attributes = [
+                ['VARIABLE',   self.vf_water],
+                ['COLORBYRGB', [0.2, 0.6, 1]],
+                ['OPAQUENESS', 0.55]
+            ]
+        )[0]
+
+        self.symmetry_part.setattrs({
+            'COLORBYPALETTE' : self.vf_air,
+            'OPAQUENESS'     : 0.55
+        })
+
+        self.fluid_part.VISIBLE          = False
+        self.symmetry_part.VISIBLE       = True
+        self.outlet_part.VISIBLE         = False
+        self.solid_coupling_part.VISIBLE = True
+
+        self.solid_coupling_part.setattrs({
+            'OPAQUENESS' : 1,
+            'COLORBYRGB' : [0.57, 0.57, 0.57]
+        })
+        
+        self.vf_air_palette = self.vf_air.PALETTE['Volume_fraction_air<\\\\units>'][0]
+        self.vf_air.LEGEND['Volume_fraction_air<\\\\units>'][0].VISIBLE = False
+
+        self.vf_air_palette.setattrs({
+            'NLEVELS'      : 2,
+            'MINMAX'       : [0, 0.5],
+            'LIMIT_FRINGES' : self.eonums.PALETTE_LIMIT_FRINGES_INVISIBLE,
+            'LEVELS_AND_COLORS' : [[0, 0.2, 0.6, 1, 1], [0.5, 0.2, 0.6, 1, 1]]
+        })
+
+        self.create_animation('general_animation')
 
         print(green_text('Basic animation completed'))
+
+        # Cleanup
+        self.solid_coupling_part.VISIBLE = False
+        self.symmetry_part.VISIBLE       = False
+        self.basic_iso_part.VISIBLE      = False
 
     '''
     -----------------------------
@@ -419,29 +463,23 @@ class EnsightController:
 
         self.velocity_palette.set_range_to_over_time_minmax(self.t0[0], self.tn[0])
 
-        self.velocity_palette.setattrs(
-            {
-                'MINMAX'  : [0, np.ceil(self.velocity_palette.MINMAX[1])],
-                'NLEVELS' : 11
-            }
-        )
+        self.velocity_palette.setattrs({
+            'MINMAX'  : [0, np.ceil(self.velocity_palette.MINMAX[1])],
+            'NLEVELS' : 11
+        })
 
-        self.velocity_legend.setattrs(
-            {
-                'TYPE'    : self.eonums.FNC_CONST,
-                'FORMAT'  : '%0.1f'
-            }
-        )
+        self.velocity_legend.setattrs({
+            'TYPE'    : self.eonums.FNC_CONST,
+            'FORMAT'  : '%0.1f'
+        })
 
         self.create_animation('velocity_animation')
 
         # Cleanup
-        self.solid_coupling_part.setattrs(
-            {
-                'OPAQUENESS' : 1,
-                'COLORBYRGB' : [0.57, 0.57, 0.57]
-            }
-        )
+        self.solid_coupling_part.setattrs({
+            'OPAQUENESS' : 1,
+            'COLORBYRGB' : [0.57, 0.57, 0.57]
+        })
 
         self.velocity_legend.VISIBLE = False 
 
@@ -664,3 +702,24 @@ class EnsightController:
             self.ensight.solution_time.step_forward()
 
         print(green_text('FFT of fluid surface completed'))
+
+
+if __name__ == '__main__':
+    ensig = EnsightController(parameters = {
+        'frequency'           : 1.63e6,
+        'amplitude'           : 1e-6,
+        'n_cycles'            : 60,
+        'n_levels_refinement' : 5,
+        'channel_width'       : 50,
+        'grid_size'           : 500
+        }, 
+        folder = 'D:\\Uni_Projects\\PALM_Projects\\Data\\1000nm_amplitude'
+    )
+
+    os.makedirs('D:\\Uni_Projects\\PALM_Projects\\Simulations\\Fluent_Droplet_PostProcessing\\data_droplets_noisy\\output', exist_ok=True)
+
+    ensig.start_ensight()
+
+    ensig.set_iso_view()
+
+    ensig.basic_animation()
