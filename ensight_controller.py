@@ -28,10 +28,10 @@ class EnsightController:
         # Workstation: ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251'
         session = ens.LocalLauncher(
             batch              = True, 
-            ansys_installation = '/apps/ansys/25r1/v251'#,
+            ansys_installation = '/apps/ansys/25r1/v251',
+            use_egl = True#,
         #    additional_command_line_options = ['-X']#,
         #    use_sos = 2,
-        #    use_egl = True,
         #    use_mpi = 'intel2021',
         #    interconnect = 'ethernet'
         ).start()
@@ -205,7 +205,7 @@ class EnsightController:
         self.ensight.file.animation_screen_tiling(1,1)
         self.ensight.file.animation_file(os.path.join(self.folder, 'output', fname))
         self.ensight.file.animation_window_size("user_defined")
-        self.ensight.file.animation_window_xy(3840,2160)
+        self.ensight.file.animation_window_xy(2560,1440)
         self.ensight.solution_time.increment(1)
         self.ensight.file.animation_frames(self.tn[0])
         self.ensight.file.animation_start_number(0)
@@ -464,8 +464,8 @@ class EnsightController:
         self.velocity_palette.set_range_to_over_time_minmax(self.t0[0], self.tn[0])
 
         self.velocity_palette.setattrs({
-            'MINMAX'  : [0, np.ceil(self.velocity_palette.MINMAX[1])],
-            'NLEVELS' : 11
+            'MINMAX' : [0, int(np.ceil(self.velocity_palette.MINMAX[1]))],
+            'NLEVELS': 11
         })
 
         self.velocity_legend.setattrs({
@@ -705,21 +705,42 @@ class EnsightController:
 
 
 if __name__ == '__main__':
-    ensig = EnsightController(parameters = {
+    parameters = {
         'frequency'           : 1.63e6,
         'amplitude'           : 1e-6,
         'n_cycles'            : 60,
         'n_levels_refinement' : 5,
         'channel_width'       : 50,
         'grid_size'           : 500
-        }, 
-        folder = 'D:\\Uni_Projects\\PALM_Projects\\Data\\1000nm_amplitude'
-    )
+    }
+    
+    folders = [
+        'D:\\Uni_Projects\\PALM_Projects\\Data\\1000nm_amplitude_noisy',
+        'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm'
+        'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm_noisy'
+    ]
 
-    os.makedirs('D:\\Uni_Projects\\PALM_Projects\\Simulations\\Fluent_Droplet_PostProcessing\\data_droplets_noisy\\output', exist_ok=True)
+    for i,folder in enumerate(folders):
 
-    ensig.start_ensight()
+        if (i == 2):
+            parameters['amplitude'] = 0.5e-6
 
-    ensig.set_iso_view()
+        ensig = EnsightController(
+            parameters = parameters, 
+            folder = folder
+        )
 
-    ensig.basic_animation()
+        os.makedirs(os.path.join(folder,'output'), exist_ok=True)
+
+        ensig.start_ensight()
+
+        ensig.set_iso_view()
+
+        if i != 0:
+            ensig.basic_animation()
+
+        ensig.velocity_animation()
+
+        ensig.session.close()
+
+        del ensig

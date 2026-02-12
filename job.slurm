@@ -9,7 +9,11 @@
 #SBATCH --mail-type=FAIL,END
 #SBATCH --output=outPP.out
 #SBATCH --error=errPP.err
-#SBATCH --partition=peach
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+
+export ENSIGHT10_MAX_THREADS=$SLURM_NTASKS
+export ENSIGHT10_MAX_CTHREADS=$SLURM_NTASKS
 
 echo "Starting Post-Processing job batch run"
 uv run python -u postprocess_PALM.py "/fs04/scratch2/pa16/submodels/simple_vibration_runs/SIMPATH" "parameters.json" -o "options.json"
