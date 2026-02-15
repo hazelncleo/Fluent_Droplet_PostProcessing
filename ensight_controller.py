@@ -29,8 +29,8 @@ class EnsightController:
         session = ens.LocalLauncher(
             batch              = True, 
             ansys_installation = '/apps/ansys/25r1/v251',
-            use_egl = True#,
-        #    additional_command_line_options = ['-X']#,
+            use_egl = True,
+            additional_command_line_options = ['-glconfig', '-v','5']#,
         #    use_sos = 2,
         #    use_mpi = 'intel2021',
         #    interconnect = 'ethernet'
@@ -248,7 +248,7 @@ class EnsightController:
         '''
         Finds the file with shortest file name with extension .cas.h5 in the selected data folder.
         
-        A fluent run using the case file ''
+        A fluent run using the case file
         '''
         return min(glob.glob(os.path.join(self.folder,'*.cas.h5')), key=lambda x: len(os.path.basename(x)))[:-7] + '-1-*'
 
@@ -257,6 +257,8 @@ class EnsightController:
         '''
         
         '''
+        print('Initialising Variables.')
+        start_time = time.time()
 
         self.coords = self.eocore.VARIABLES['Coordinates'][0]
         self.velocity = self.eocore.VARIABLES["Velocity"][0]
@@ -365,6 +367,9 @@ class EnsightController:
             sources = [self.outlet_part]
         )
 
+        end_time = time.time()
+        print(f'Variables initialised after: {(end_time-start_time):.2f}s')
+
 
     def init_parts(self):
         '''
@@ -387,6 +392,8 @@ class EnsightController:
     '''
 
     def basic_animation(self):
+
+        start_time = time.time()
 
         self.basic_iso_part = self.iso_default.createpart(
             name       = "basic_iso", 
@@ -425,7 +432,8 @@ class EnsightController:
 
         self.create_animation('general_animation')
 
-        print(green_text('Basic animation completed'))
+        end_time = time.time()
+        print(f'Basic animation completed after: {(end_time-start_time):.2f}s')
 
         # Cleanup
         self.solid_coupling_part.VISIBLE = False
@@ -437,6 +445,8 @@ class EnsightController:
     '''
 
     def velocity_animation(self):
+
+        start_time = time.time()
         
         self.velocity_iso_part = self.iso_default.createpart(
             name       = "velocity_iso", 
@@ -485,7 +495,8 @@ class EnsightController:
 
         self.set_default_view()
 
-        print(green_text('Velocity animation completed'))
+        end_time = time.time()
+        print(f'Velocity animation completed after {(end_time-start_time):.2f}')
 
     '''
     -----------------------------
@@ -707,7 +718,7 @@ class EnsightController:
 if __name__ == '__main__':
     parameters = {
         'frequency'           : 1.63e6,
-        'amplitude'           : 1e-6,
+        'amplitude'           : 0.5e-6,
         'n_cycles'            : 60,
         'n_levels_refinement' : 5,
         'channel_width'       : 50,
@@ -715,15 +726,11 @@ if __name__ == '__main__':
     }
     
     folders = [
-        'D:\\Uni_Projects\\PALM_Projects\\Data\\1000nm_amplitude_noisy',
-        'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm'
+        'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm',
         'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm_noisy'
     ]
 
     for i,folder in enumerate(folders):
-
-        if (i == 2):
-            parameters['amplitude'] = 0.5e-6
 
         ensig = EnsightController(
             parameters = parameters, 
@@ -736,8 +743,7 @@ if __name__ == '__main__':
 
         ensig.set_iso_view()
 
-        if i != 0:
-            ensig.basic_animation()
+        ensig.basic_animation()
 
         ensig.velocity_animation()
 

@@ -10,10 +10,11 @@
 #SBATCH --output=outPP.out
 #SBATCH --error=errPP.err
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:A100:1
 
 export ENSIGHT10_MAX_THREADS=$SLURM_NTASKS
 export ENSIGHT10_MAX_CTHREADS=$SLURM_NTASKS
+export CEI_EGL_GPU=0
 
 echo "Starting Post-Processing job batch run"
 uv run python -u postprocess_PALM.py "/fs04/scratch2/pa16/submodels/simple_vibration_runs/SIMPATH" "parameters.json" -o "options.json"
