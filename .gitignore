@@ -10,3 +10,5 @@ fft/
 __pycache__/
 .vscode/
 test_datasets/
+*.out
+*.err

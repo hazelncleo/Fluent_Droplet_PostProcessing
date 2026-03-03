@@ -30,10 +30,10 @@ class EnsightController:
             batch              = True, 
             ansys_installation = '/apps/ansys/25r1/v251',
             use_egl = True,
-            additional_command_line_options = ['-glconfig', '-v','5']#,
-        #    use_sos = 2,
-        #    use_mpi = 'intel2021',
-        #    interconnect = 'ethernet'
+            additional_command_line_options = ['-glconfig', '-v','5'],
+            use_sos = 3,
+            use_mpi = 'intel2021',
+            interconnect = 'ethernet'
         ).start()
         
 
@@ -228,20 +228,30 @@ class EnsightController:
         :param self: Description
         '''
 
-        files = self.get_files()
+        # Ensight case data import
+        if True:
+            print('Loading data into ensight')
+            start_time = time.time()
+            self.ensight.data.sos_pass_wildcards("NO")
+            self.ensight.data.sos_decompose_type('Temporal')
+            self.ensight.data.sos_auto_distrib('dont')
+            self.session.load_data(os.path.abspath(os.path.join(self.folder,'data/fluent_model.encas')))
+            end_time = time.time()
+            print(f'Data loaded into ensight after: {(end_time-start_time):.2f}s')
 
-        print('Loading data into ensight')
-        start_time = time.time()
+        # Legacy model fluent data import
+        else:
+            files = self.get_files()
 
-        # Seems to work ok on linux without these???
-        #self.ensight.data.sos_pass_wildcards("NO")
-        #self.ensight.data.sos_decompose_type('Temporal')
-        #self.ensight.data.sos_auto_distrib('dont')
+            print('Loading data into ensight')
+            start_time = time.time()
 
-        self.session.load_data(files + '.cas.h5', result_file = files + '.dat.h5')
-        end_time = time.time()
+            # Seems to work ok on linux without these???
 
-        print(f'Data loaded into ensight after: {(end_time-start_time):.2f}s')
+            self.session.load_data(files + '.cas.h5', result_file = files + '.dat.h5')
+            end_time = time.time()
+
+            print(f'Data loaded into ensight after: {(end_time-start_time):.2f}s')
 
 
     def get_files(self):
@@ -261,9 +271,9 @@ class EnsightController:
         start_time = time.time()
 
         self.coords = self.eocore.VARIABLES['Coordinates'][0]
-        self.velocity = self.eocore.VARIABLES["Velocity"][0]
-        self.vf_water = self.eocore.VARIABLES["Volume_fraction_water"][0]
-        self.vf_air = self.eocore.VARIABLES["Volume_fraction_air"][0]
+        self.velocity = self.eocore.VARIABLES["velocity"][0]
+        self.vf_water = self.eocore.VARIABLES["water_vof"][0]
+        self.vf_air = self.eocore.VARIABLES["air_vof"][0]
         self.analysis_time = self.eocore.VARIABLES["Analysis_Time"][0]
 
         # Calculate time variables
@@ -316,7 +326,7 @@ class EnsightController:
         # Calculate shearrate variables
         self.eocore.create_variable(
             name    = 'temp_1',
-            value   = '0*Volume_fraction_air@MLL/TT', 
+            value   = '0*air_vof@MLL/TT', 
             sources = [self.fluid_part], 
             private = 1
         )
@@ -330,13 +340,13 @@ class EnsightController:
         
         self.eocore.create_variable(
             name    = 'water_threshold',
-            value   = 'IF_GT(Volume_fraction_water,0.75)', 
+            value   = 'IF_GT(water_vof,0.75)', 
             sources = [self.fluid_part]
         )
         
         self.eocore.create_variable(
             name    = 'temp_shear',
-            value   = 'FluidShearMax(plist,Velocity,1.0,temp_1,temp_2,1.0)', 
+            value   = 'FluidShearMax(plist,velocity,1.0,temp_1,temp_2,1.0)', 
             sources = [self.fluid_part], 
             private = 1
         )
@@ -349,14 +359,14 @@ class EnsightController:
         
         self.shearrate_vf = self.eocore.create_variable(
             name    = 'shearrate_vf', 
-            value   = 'Volume_fraction_water*temp_shear@/T', 
+            value   = 'water_vof*temp_shear@/T', 
             sources = [self.fluid_part]
         )
 
         # Calculate outlet flowrate variables
         self.water_velocity = self.eocore.create_variable(
             name    = 'water_velocity', 
-            value   = 'Velocity*Volume_fraction_water', 
+            value   = 'velocity*water_vof', 
             sources = [self.fluid_part, self.outlet_part],
             private = 1
         )
@@ -420,8 +430,8 @@ class EnsightController:
             'COLORBYRGB' : [0.57, 0.57, 0.57]
         })
         
-        self.vf_air_palette = self.vf_air.PALETTE['Volume_fraction_air<\\\\units>'][0]
-        self.vf_air.LEGEND['Volume_fraction_air<\\\\units>'][0].VISIBLE = False
+        self.vf_air_palette = self.vf_air.PALETTE['air_vof<\\\\units>'][0]
+        self.vf_air.LEGEND['air_vof<\\\\units>'][0].VISIBLE = False
 
         self.vf_air_palette.setattrs({
             'NLEVELS'      : 2,
@@ -461,8 +471,8 @@ class EnsightController:
         self.symmetry_part.VISIBLE       = False
         self.outlet_part.VISIBLE         = False
         self.solid_coupling_part.VISIBLE = True
-        self.velocity_palette            = self.velocity.PALETTE['Velocity<\\\\units>'][0]
-        self.velocity_legend             = self.velocity.LEGEND['Velocity<\\\\units>'][0]
+        self.velocity_palette            = self.velocity.PALETTE['velocity<\\\\units>'][0]
+        self.velocity_legend             = self.velocity.LEGEND['velocity<\\\\units>'][0]
 
         self.solid_coupling_part.setattrs(
             {
@@ -718,7 +728,7 @@ class EnsightController:
 if __name__ == '__main__':
     parameters = {
         'frequency'           : 1.63e6,
-        'amplitude'           : 0.5e-6,
+        'amplitude'           : 1e-6,
         'n_cycles'            : 60,
         'n_levels_refinement' : 5,
         'channel_width'       : 50,
@@ -726,8 +736,7 @@ if __name__ == '__main__':
     }
     
     folders = [
-        'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm',
-        'D:\\Uni_Projects\\PALM_Projects\\Data\\adaptive_64_500nm_noisy'
+        'C:\\Users\\PCUser\\Documents\\test'
     ]
 
     for i,folder in enumerate(folders):

@@ -35,7 +35,7 @@ ax_a[0].set_yscale('log')
 ax_a[0].set(
     title = 'Max Shearrate for different amplitudes',
     xlim = [-0.1,60],
-    ylim = [100,1e8],
+    ylim = [1e4,1e8],
     xlabel = 'N Cycles',
     ylabel = r'Max Shearrate $(\frac{1}{s})$'
 )
@@ -75,7 +75,7 @@ ax_n[0].set_yscale('log')
 ax_n[0].set(
     title = 'Max shearrate with and without noise',
     xlim = [-0.1,60],
-    ylim = [100,1e8],
+    ylim = [1e4,1e8],
     xlabel = 'N Cycles',
     ylabel = r'Max Shearrate $(\frac{1}{s})$'
 )
