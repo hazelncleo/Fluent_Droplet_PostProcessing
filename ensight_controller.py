@@ -718,7 +718,7 @@ class EnsightController:
             
             fft_calculator.solve(data=self.iso_surface_coordinates, time_data=[self.eocore.TIMESTEP+1,self.eocore.SOLUTIONTIME])
 
-            fft_calculator.full_plot(f'FFT Plot t={i}', os.path.join('.', 'images', f'iso_plot_{int(self.eocore.TIMESTEP+1)}.png'))
+            fft_calculator.small_plot(f'FFT Plot t={i}', os.path.join('output', f'iso_plot_{int(self.eocore.TIMESTEP+1)}.png'))
             
             self.ensight.solution_time.step_forward()
 

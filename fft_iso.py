@@ -49,14 +49,19 @@ class FFT_ISO:
             'n_samples_length' : self.sampling_data['elements_along_length'] + 1
         })
         
-        self.data_loaded          = False
-        self.frequency_multiplier = np.array([0.5,1,2,3])
+        self.data_loaded = False
+        self.parameters  = parameters
         
         self.create_meshes()
         
         self.create_window_functions()
         
+
+    def calculate_theory_wavelength(self) -> float:
+        ''' Calculate the theoretical surface wavelength in micron '''
+        return 1e6 * np.power((2 * np.pi * 0.072) / (997 * (self.parameters['frequency'] / 2)**2), 1/3)
         
+
     def create_meshes(self):
         '''
         Create both spatial and frequency domain meshes 
@@ -481,8 +486,148 @@ class FFT_ISO:
             f.savefig(file_name, dpi = 750)
             
             
-    def small_plot(self): # TODO
-        pass
+    def small_plot(self, title = None, file_name = None, display = False): # TODO
+
+
+        # Create plot objects
+        f_v,ax_v = plt.subplots(
+            nrows   = 1, 
+            ncols   = 3,
+            layout  = 'constrained',
+            figsize = (11,4.5)
+        )
+
+        f_h,ax_h = plt.subplots(
+            nrows   = 1, 
+            ncols   = 3,
+            layout  = 'constrained',
+            figsize = (12,3.5)
+        )
+        
+        f_v.get_layout_engine().set(
+            w_pad  = 0.15, 
+            h_pad  = 0.075, 
+            hspace = 0.05, 
+            wspace = 0.05
+        )
+
+        if title:
+            f_v.suptitle(title+', vertical data.', size = 16)
+            f_h.suptitle(title+', horizontal data.', size = 16)
+        
+        # Set Styling
+        ax_v[0].set(
+            xlim   = [-int(self.sampling_data['grid_size'] / 2), int(self.sampling_data['grid_size'] / 2)],
+            ylim   = [-int(self.sampling_data['grid_size'] / 2), int(self.sampling_data['grid_size'] / 2)],
+            aspect = 'equal'
+        )
+        
+        ax_v[1].set(
+            xlim   = [np.min(self.meshes['vertical_y_frequency_mesh']), np.max(self.meshes['vertical_y_frequency_mesh'])],
+            ylim   = [np.min(self.meshes['vertical_y_frequency_mesh']), np.max(self.meshes['vertical_y_frequency_mesh'])],
+            aspect = 'equal'
+        )
+
+        ax_v[2].set_aspect(1.75)
+
+        ax_v[0].set_title('Raw displacement data of surface.', fontsize = 10)
+        ax_v[1].set_title('Logged PSD', fontsize = 10)
+        ax_v[2].set_title('Normed Wavelength Powers', fontsize = 10)
+
+        ax_v[0].set_xlabel(r'$x$ Position $(\mu m)$', fontsize = 9)
+        ax_v[1].set_xlabel(r'Spatial Frequency X $(\frac{1}{\mu m})$', fontsize = 9)
+        ax_v[2].set_xlabel(r'Wavelength $(\mu m)$', fontsize = 9)
+
+        ax_v[0].set_ylabel(r'$y$ Position $(\mu m)$', fontsize = 9)
+        ax_v[1].set_ylabel(r'Spatial Frequency Y $(\frac{1}{\mu m})$', fontsize = 9)
+        ax_v[2].set_ylabel(r'Power $(\mu m^4)$', fontsize = 9)
+        
+        # Calculate colorbar ranges
+        height_cmap_min_v = self.data['vertical'].min()
+        height_cmap_max_v = self.data['vertical'].max()
+        PSD_cmap_min_v    = self.PSD['vertical_windowed'].min()
+        PSD_cmap_max_v    = self.PSD['vertical_windowed'].max()
+
+        display_height_cmap = ax_v[0].pcolormesh(
+            self.meshes['vertical_x_mesh'],
+            self.meshes['vertical_y_mesh'],
+            self.data['vertical'],
+            cmap = self.cmap_deform,
+            vmin = height_cmap_min_v,
+            vmax = height_cmap_max_v
+        )
+
+        cb_v = f_v.colorbar(
+            display_height_cmap, 
+            ax       = ax_v[0],
+            location = 'bottom',
+            orientation = 'horizontal'
+        )
+
+        cb_v.set_label(
+            label    = r'$z$ Displacement $(\mu m)$',
+            fontsize = 8
+        )
+
+        cb_v.ax.tick_params(labelsize=6)
+        
+        display_PSD_cmap = ax_v[1].pcolormesh(
+            self.meshes['vertical_x_frequency_mesh'],
+            self.meshes['vertical_y_frequency_mesh'],
+            self.PSD['vertical_windowed'],
+            cmap = self.cmap_psd,
+            vmin = PSD_cmap_min_v,
+            vmax = PSD_cmap_max_v
+        )
+
+        cb_v = f_v.colorbar(
+            display_PSD_cmap, 
+            ax       = ax_v[1],
+            location = 'bottom',
+            orientation = 'horizontal'
+        )
+
+        cb_v.set_label(
+            label    = r'Power $(\mu m^4)$',
+            fontsize = 8
+        )
+        
+        cb_v.ax.tick_params(labelsize=6)
+
+        ax_v[2].scatter(
+            x     = self.norms['vertical_wavelength_flat'][self.masks['vertical_zero-range']],
+            y     = self.PSD['vertical_windowed_flat'][self.masks['vertical_range']],
+            color = 'k',
+            s     = 0.75
+        )
+        
+        wavelength = self.calculate_theory_wavelength()
+
+        # Finalizing Styling TODO: Add calculation for predicted wavelength from theory
+        ax_v[2].axvline(
+            x      = wavelength,
+            ymin   = 0,
+            ymax   = 1, 
+            color  = 'r',
+            lw     = 1,
+            alpha  = 0.55,
+            ls     = '--', 
+            label  = r'{:.1f}$\mu m$'.format(wavelength)
+        )
+
+        ax_v[2].legend(
+            loc            = 'lower right', 
+            title          = 'Theory Wavelength', 
+            fancybox       = True, 
+            fontsize       = 'small', 
+            title_fontsize = 'small'
+        )
+
+        if display:
+            plt.show()
+            
+        if file_name:
+            f_v.savefig(file_name, dpi = 750)
     
     
     def output_data(self): # TODO
@@ -490,8 +635,8 @@ class FFT_ISO:
 
 if __name__ == '__main__':
     fft_iso = FFT_ISO()
-    import glob ; files = glob.glob('fft/*.npy')
+    import glob ; files = glob.glob('test_datasets/data/*.npy')
     
-    for i,f in enumerate(files):
-        fft_iso.solve(file = f)
-        fft_iso.full_plot(f, f'plot_{i}.png')
+    for i,fpath in enumerate(files):
+        fft_iso.solve(file = fpath)
+        fft_iso.small_plot(f'plot_nn_{i}', f'output/plot_nn_{i}.png')

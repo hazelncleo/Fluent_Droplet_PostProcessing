@@ -1,8 +1,8 @@
 {
     "Droplet sizing"     : false,
-    "General animation"  : true,
-    "Shearrate"          : "Calculation",
-    "Velocity animation" : true,
-    "Flowrate"           : "Calculation",
-    "FFT"                : false
+    "General animation"  : false,
+    "Shearrate"          : false,
+    "Velocity animation" : false,
+    "Flowrate"           : false,
+    "FFT"                : true
 }

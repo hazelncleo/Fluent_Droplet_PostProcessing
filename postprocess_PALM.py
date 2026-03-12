@@ -24,13 +24,13 @@ options, str
 -------------------------------------------------------------------
 
 Use options specified by a .json file
->>> uv python -u postprocess_PALM.py "path/to/fluent/data" "parameters.json" -o "options.json"
+>>> uv run python -u postprocess_PALM.py "path/to/fluent/data" "parameters.json" -o "options.json"
 
 Use options specified by user at runtime
->>> uv python -u postprocess_PALM.py "path/to/fluent/data" "parameters.json"
+>>> uv run python -u postprocess_PALM.py "path/to/fluent/data" "parameters.json"
 
 See help menu
->>> uv python postprocess_PALM.py -h
+>>> uv run python postprocess_PALM.py -h
 
 -------------------------------------------------------------------
 '''
