@@ -1,3 +1,36 @@
-/rc fluent_model-1-00450.cas.h5
-/rd fluent_model-1-00450.dat.h5
+;fluent 3ddp -i journal.jou -gu -t0 -driver null
+
+/file/set-batch-options yes yes no
+/mesh/adapt/set/method/hanging-node
+/file/convert-hanging-nodes-during-read?/no
+
+/rc droplets_1.cas.h5
+/rd droplets_1.dat.h5
+
+/mesh/adapt/set/method/hanging-node
+/file/convert-hanging-nodes-during-read?/no
+
+;add udm
+/define/user-defined/user-defined-memory 1
+
+;hook udf
+/define/user-defined/compiled-functions unload libudf
+/define/user-defined/use-built-in-compiler? yes
+/define/user-defined/compiled-functions compile libudf yes "droplet_sizing_script.c" "" ""
+
+;compile udf
+/define/user-defined/compiled-functions load libudf
+
+;run on-demand
+/define/user-defined/execute-on-demand "calculate_droplet_sizes::libudf"
+
+;/parallel timer usage
+
+;/wc test.cas.h5
+;/wd test.dat.h5
+
+exit yes
+/exit yes
+
+
 

@@ -12,3 +12,4 @@ __pycache__/
 test_datasets/
 *.out
 *.err
+droplet_sizing_script/libudf
