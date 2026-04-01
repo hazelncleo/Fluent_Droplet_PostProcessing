@@ -1,25 +1,48 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
+import glob
+import os
 
-df = pd.read_csv('droplet_sizing_script/droplets.csv')
+files = glob.glob('droplet_sizing_script/droplets_*.csv')
 
-droplet_id = df['droplet_id'][1:]
-volume = df['volume'][1:]*1e18
-ux = df['ux'][1:]
-uy = df['uy'][1:]
-uz = df['uz'][1:]
-vx = df['vx'][1:]
-vy = df['vy'][1:]
-vz = df['vz'][1:]
+for i,f in enumerate(files):
+    df = pd.read_csv(f)
+    df=df[df['volume'] < 1e-13]
+    if i == 0:
+        volume = df['volume']*1e18
+        ux = df['ux']
+        uy = df['uy']
+        uz = df['uz']
+        vx = df['vx']
+        vy = df['vy']
+        vz = df['vz']
+    else:
+        volume = np.append(volume, df['volume']*1e18)
+        ux = np.append(ux, df['ux'])
+        uy = np.append(ux, df['uy'])
+        uz = np.append(ux, df['uz'])
+        vx = np.append(ux, df['vx'])
+        vy = np.append(ux, df['vy'])
+        vz = np.append(ux, df['vz'])
+
 velocity = np.sqrt(vx**2 + vy**2 + vz**2)
-diameter = 2 * np.power((3 / (4 * np.pi)) * volume, 1/3)
+diameter = 2 * np.cbrt((3 / (4 * np.pi)) * volume)
 
-f,ax = plt.subplots(1,4, figsize = (14,4))
-ax[0].hist(diameter,bins=15)
-ax[1].hist(diameter,weights=volume,bins=15)
-ax[2].hist(velocity,bins=15)
-ax[3].hist(velocity[uz < 500e-6])
+f,ax = plt.subplots(1,1, figsize=(5,4.2))
+f.tight_layout(pad=2.8)
+
+ax.hist(diameter,weights=volume,bins=15,density=True,color='xkcd:sky blue',edgecolor='k')
+sns.kdeplot(x=diameter, weights=volume, ax=ax,color='r')
+
+ax.set(
+    title = 'Droplet diameter distribution (Volume)',
+    xlabel = r'Diameter $(\mu m)$',
+    ylabel = 'Density'
+)
 
 
-f.savefig('test.png', dpi=750)
+
+
+f.savefig(f'droplet_sizing_script/test.png', dpi=750)

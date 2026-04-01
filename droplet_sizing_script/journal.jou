@@ -4,8 +4,8 @@
 /mesh/adapt/set/method/hanging-node
 /file/convert-hanging-nodes-during-read?/no
 
-/rc droplets_1.cas.h5
-/rd droplets_1.dat.h5
+/rc "data/data_1.cas.h5"
+/rd "data/data_1.dat.h5"
 
 /mesh/adapt/set/method/hanging-node
 /file/convert-hanging-nodes-during-read?/no
@@ -16,7 +16,7 @@
 ;hook udf
 /define/user-defined/compiled-functions unload libudf
 /define/user-defined/use-built-in-compiler? yes
-/define/user-defined/compiled-functions compile libudf yes "droplet_sizing_script.c" "" ""
+/define/user-defined/compiled-functions compile libudf yes "droplet_sizing_script.c" "" "data_storage.h" "stack.h" ""
 
 ;compile udf
 /define/user-defined/compiled-functions load libudf
@@ -24,10 +24,20 @@
 ;run on-demand
 /define/user-defined/execute-on-demand "calculate_droplet_sizes::libudf"
 
-;/parallel timer usage
+(Do ((x 2 (+ x 1))) ((> x 38))
+    (ti-menu-load-string (format #f "file read-case-data data/data_~a.cas.h5 o" x))
+    (ti-menu-load-string (format #f "file read-data data/data_~a.dat.h5 o" x))
+    (ti-menu-load-string (format #f "/define/user-defined/user-defined-memory 1"))
+    (ti-menu-load-string (format #f "/define/user-defined/execute-on-demand \"calculate_droplet_sizes::libudf\""))
+)
 
-;/wc test.cas.h5
-;/wd test.dat.h5
+
+;/rc "data/data_2.cas.h5" ok
+;/rd "data/data_2.dat.h5" ok
+
+
+;run on-demand
+
 
 exit yes
 /exit yes
