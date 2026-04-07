@@ -5,7 +5,7 @@ import seaborn as sns
 import glob
 import os
 
-files = glob.glob('droplet_sizing_script/droplets_*.csv')
+files = glob.glob('droplet_sizing_script/droplet_data/droplets_*.csv')
 
 for i,f in enumerate(files):
     df = pd.read_csv(f)

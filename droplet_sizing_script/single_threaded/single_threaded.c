@@ -8,7 +8,7 @@
 DEFINE_ON_DEMAND(calculate_droplet_sizes){
     
     Domain *mixture_domain = Get_Domain(1);
-    Domain *water_domain = DOMAIN_SUB_DOMAIN(mixture_domain,S_PHASE);
+    Domain *water_domain = DOMAIN_SUB_DOMAIN(mixture_domain, S_PHASE);
     Thread *cell_thread, *water_thread, *adjacent_cell_thread, *cell_face_thread;
     Thread **pt;
     face_t cell_face;

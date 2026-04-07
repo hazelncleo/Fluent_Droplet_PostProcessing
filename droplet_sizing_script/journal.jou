@@ -16,7 +16,7 @@
 ;hook udf
 /define/user-defined/compiled-functions unload libudf
 /define/user-defined/use-built-in-compiler? yes
-/define/user-defined/compiled-functions compile libudf yes "droplet_sizing_script.c" "" "data_storage.h" "stack.h" ""
+/define/user-defined/compiled-functions compile libudf yes "multithreaded.c" "stack.c" "data_storage.c" "" "data_storage.h" "stack.h" "multithreaded.h" ""
 
 ;compile udf
 /define/user-defined/compiled-functions load libudf
