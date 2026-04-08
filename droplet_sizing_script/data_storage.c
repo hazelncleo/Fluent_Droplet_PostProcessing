@@ -3,104 +3,64 @@
 
 #define SECONDARY_DENSITY 997. // water density kg/m^3
 
-// Initialise values
-void initialize_storage(DataStorage *datastorage){
-    datastorage->droplet_id = 1;
-    datastorage->vof_water  = 0.;
-    datastorage->explored   = 0;
-    datastorage->temp       = 0.;
-    datastorage->droplet_volume = 0.;
-    datastorage->centroid[0] = 0.;
-    datastorage->centroid[1] = 0.;
-    datastorage->centroid[2] = 0.;
-    datastorage->temp_vector[0] = 0.;
-    datastorage->temp_vector[1] = 0.;
-    datastorage->temp_vector[2] = 0.;
-    datastorage->velocity[0] = 0.;
-    datastorage->velocity[1] = 0.;
-    datastorage->velocity[2] = 0.;
-    datastorage->mass = 0.;
-}
-
 // Reset values
-void reset(DataStorage *datastorage){
-    datastorage->vof_water  = 0.;
-    datastorage->explored   = 0;
-    datastorage->temp       = 0.;
-    datastorage->droplet_volume = 0.;
-    datastorage->centroid[0] = 0.;
-    datastorage->centroid[1] = 0.;
-    datastorage->centroid[2] = 0.;
-    datastorage->temp_vector[0] = 0.;
-    datastorage->temp_vector[1] = 0.;
-    datastorage->temp_vector[2] = 0.;
-    datastorage->velocity[0] = 0.;
-    datastorage->velocity[1] = 0.;
-    datastorage->velocity[2] = 0.;
-    datastorage->mass = 0.;
+void reset(real *droplet_values, real *calc_values){
+    int i;
+    for (i = 0; i < 7; i++){
+        droplet_values[i] = 0.;
+    }
+    for (i = 0; i < 3; i++){
+        calc_values[i] = 0.;
+    }
 }
 
 // Calculate initial values for first cell in droplet
-void first_value_update(DataStorage *datastorage, cell_t cell, Thread *cell_thread){
+void first_value_update(real *droplet_values, real *calc_values, cell_t cell, Thread *cell_thread){
 
-    datastorage->droplet_volume = C_VOLUME(cell, cell_thread)*datastorage->vof_water;
-    datastorage->mass = datastorage->droplet_volume * SECONDARY_DENSITY;
+    droplet_values[0] = C_VOLUME(cell, cell_thread) * calc_values[0];
+    calc_values[1] = droplet_values[0] * SECONDARY_DENSITY;
 
-    C_CENTROID(datastorage->centroid, cell, cell_thread);
-    datastorage->centroid[0] *= datastorage->mass;
-    datastorage->centroid[1] *= datastorage->mass;
-    datastorage->centroid[2] *= datastorage->mass;
+    real temp[3];
+    C_CENTROID(temp, cell, cell_thread);
+    droplet_values[1] = temp[0] * calc_values[1];
+    droplet_values[2] = temp[1] * calc_values[1];
+    droplet_values[3] = temp[2] * calc_values[1];
 
-    datastorage->velocity[0] = C_U(cell, cell_thread) * datastorage->mass;
-    datastorage->velocity[1] = C_V(cell, cell_thread) * datastorage->mass;
-    datastorage->velocity[2] = C_W(cell, cell_thread) * datastorage->mass;
+    droplet_values[4] = C_U(cell, cell_thread) * calc_values[1];
+    droplet_values[5] = C_V(cell, cell_thread) * calc_values[1];
+    droplet_values[6] = C_W(cell, cell_thread) * calc_values[1];
 }
 
 // Calculate values for each subsequent cell in droplet
-void subsequent_value_update(DataStorage *datastorage, cell_t adjacent_cell, Thread *cell_thread){
-    datastorage->temp = C_VOLUME(adjacent_cell, cell_thread) * datastorage->vof_water;
+void subsequent_value_update(real *droplet_values, real *calc_values, cell_t adjacent_cell, Thread *cell_thread){
 
-    datastorage->droplet_volume += datastorage->temp;
+    calc_values[2] = C_VOLUME(adjacent_cell, cell_thread) * calc_values[0];
 
-    datastorage->temp *= SECONDARY_DENSITY;
+    droplet_values[0] += calc_values[2];
 
-    datastorage->mass += datastorage->temp;
+    calc_values[2] *= SECONDARY_DENSITY;
 
-    C_CENTROID(datastorage->temp_vector, adjacent_cell, cell_thread);
+    calc_values[1] += calc_values[2];
 
-    datastorage->centroid[0] += datastorage->temp_vector[0] * datastorage->temp;
-    datastorage->centroid[1] += datastorage->temp_vector[1] * datastorage->temp;
-    datastorage->centroid[2] += datastorage->temp_vector[2] * datastorage->temp;
+    real temp[3];
+    C_CENTROID(temp, adjacent_cell, cell_thread);
+    droplet_values[1] += temp[0] * calc_values[2];
+    droplet_values[2] += temp[1] * calc_values[2];
+    droplet_values[3] += temp[2] * calc_values[2];
 
-    datastorage->velocity[0] += C_U(adjacent_cell, cell_thread) * datastorage->temp;
-    datastorage->velocity[1] += C_V(adjacent_cell, cell_thread) * datastorage->temp;
-    datastorage->velocity[2] += C_W(adjacent_cell, cell_thread) * datastorage->temp;
+    droplet_values[4] += C_U(adjacent_cell, cell_thread) * calc_values[2];
+    droplet_values[5] += C_V(adjacent_cell, cell_thread) * calc_values[2];
+    droplet_values[6] += C_W(adjacent_cell, cell_thread) * calc_values[2];
 }
 
 // Calculate final values
-void final_value_update(DataStorage *datastorage){
+void final_value_update(real *droplet_values, real *calc_values){
 
-    datastorage->centroid[0] /= datastorage->mass;
-    datastorage->centroid[1] /= datastorage->mass;
-    datastorage->centroid[2] /= datastorage->mass;
+    droplet_values[1] /= calc_values[1];
+    droplet_values[2] /= calc_values[1];
+    droplet_values[3] /= calc_values[1];
 
-    datastorage->velocity[0] /= datastorage->mass;
-    datastorage->velocity[1] /= datastorage->mass;
-    datastorage->velocity[2] /= datastorage->mass;
-}
-
-// Write droplet data to the file
-void write_droplet_data_to_file(DataStorage *datastorage, FILE *fptr){
-    fprintf(
-        fptr, 
-        "%d,%e,%e,%e,%e,%e,%e,%e\n",
-        datastorage->droplet_id,
-        datastorage->droplet_volume,
-        datastorage->centroid[0],
-        datastorage->centroid[1],
-        datastorage->centroid[2],
-        datastorage->velocity[0],
-        datastorage->velocity[1],
-        datastorage->velocity[2]
-    );
+    droplet_values[4] /= calc_values[1];
+    droplet_values[5] /= calc_values[1];
+    droplet_values[6] /= calc_values[1];
 }
