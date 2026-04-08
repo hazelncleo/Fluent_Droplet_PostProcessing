@@ -18,11 +18,14 @@ void calculate_droplets(){
 
     // Node zero first moves other nodes data to host
     #if !RP_HOST
+
+        compute_droplet_data();
+
         if I_AM_NODE_ZERO_P {
             node_zero_send_data();
         }
         
-        compute_droplet_data();
+        
     #endif
 
     #if !RP_NODE
@@ -54,6 +57,7 @@ FILE *file_handler(){
 
 
 void node_zero_send_data(){
+    
     Message("Node zero!\n");
     int message, i, droplet_id, j = 0, nodes_completed[compute_node_count];
     bool all_nodes_completed = false;
@@ -109,9 +113,10 @@ void compute_droplet_data(){
     Thread **pt;
     face_t cell_face;
     cell_t cell, current_cell, adjacent_cell;    
-    int local_face_id, droplet_id[2] = {0}; // 0 = id, 1 = explored
+    int local_face_id, cell_node_id, droplet_id[2] = {0}; // 0 = id, 1 = explored
     real droplet_values[8] = {0.}; // 0 = vol, 1-3 = centroid, 4-6 = velocity, 7 = mass
     real calc_values[2] = {0.}; // 0 = vof, 1 = temp value
+    bool droplet_outside_cell = false;
     droplet_id[0] = myid + 1;
     
     Message("\nNode %d initialized\n", myid);
@@ -141,9 +146,13 @@ void compute_droplet_data(){
 
                     C_UDMI(cell, cell_thread, 0) = droplet_id[0]; // Cell explored
                     push(&stack, cell); // Push to the stack
-                    
 
                     first_value_update(droplet_values, calc_values, cell, cell_thread);
+
+                    cell_node_id = C_PART(cell, cell_thread);
+                    if (cell_node_id != myid) {
+                        droplet_outside_cell = true;
+                    }
 
                     while (!isEmpty(&stack)) {
 
@@ -174,6 +183,11 @@ void compute_droplet_data(){
                                     C_UDMI(adjacent_cell, cell_thread, 0) = droplet_id[0];
 
                                     subsequent_value_update(droplet_values, calc_values, adjacent_cell, cell_thread);
+
+                                    cell_node_id = C_PART(adjacent_cell, cell_thread);
+                                    if (cell_node_id != myid) {
+                                        droplet_outside_cell = true;
+                                    }
 
                                 } else if (droplet_id[1] == 0) {
                                     C_UDMI(adjacent_cell, cell_thread, 0) = -1;
@@ -224,6 +238,40 @@ void host_write_to_file(){
     memset(nodes_completed,0,sizeof(nodes_completed));
     Message("\nHost process initialized\n");
 
+    // Write node 0 first
+    droplet_id = 1;
+    while (nodes_completed[0] == 0) {
+        PRF_CRECV_INT(node_zero, &message, 1, droplet_id);
+
+        if (message == -1){
+
+            // Node calculations completed
+            break;
+
+        } else if (message == 0){
+            
+            // Receive values for droplet
+            PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
+            fprintf(
+                fptr, 
+                "%d,%e,%e,%e,%e,%e,%e,%e,%e\n",
+                droplet_id,
+                droplet_values[0], // droplet volume
+                droplet_values[1], // x centroid
+                droplet_values[2], // y centroid
+                droplet_values[3], // z centroid
+                droplet_values[4], // x velocity
+                droplet_values[5], // y velocity
+                droplet_values[6], // z velocity
+                droplet_values[7]  // mass
+            );
+
+        } else if (message == -1) {
+        }
+        droplet_id += compute_node_count;
+    }
+
+    // Write all other nodes
     while (!all_nodes_completed) {
 
         all_nodes_completed = true;
@@ -272,39 +320,6 @@ void host_write_to_file(){
         
         j++;
     }
-
-    droplet_id = 1;
-    while (nodes_completed[0] == 0) {
-        PRF_CRECV_INT(node_zero, &message, 1, droplet_id);
-
-        if (message == -1){
-
-            // Node calculations completed
-            break;
-
-        } else if (message == 0){
-            
-            // Receive values for droplet
-            PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
-            fprintf(
-                fptr, 
-                "%d,%e,%e,%e,%e,%e,%e,%e,%e\n",
-                droplet_id,
-                droplet_values[0], // droplet volume
-                droplet_values[1], // x centroid
-                droplet_values[2], // y centroid
-                droplet_values[3], // z centroid
-                droplet_values[4], // x velocity
-                droplet_values[5], // y velocity
-                droplet_values[6], // z velocity
-                droplet_values[7]  // mass
-            );
-
-        } else if (message == -1) {
-        }
-        droplet_id += compute_node_count;
-    }
-
 
     fclose(fptr);
 }

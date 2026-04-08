@@ -11,7 +11,7 @@
 /file/convert-hanging-nodes-during-read?/no
 
 ;add udm
-/define/user-defined/user-defined-memory 1
+/define/user-defined/user-defined-memory 2
 
 ;hook udf
 /define/user-defined/compiled-functions unload libudf
