@@ -8,8 +8,10 @@ void calculate_droplets();
 
 FILE *file_handler();
 
-void write_files();
+void node_zero_send_data();
 
-void combine_droplets();
+void compute_droplet_data();
+
+void host_write_to_file();
 
 #endif

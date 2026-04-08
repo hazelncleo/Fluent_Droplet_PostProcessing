@@ -6,10 +6,10 @@
 // Reset values
 void reset(real *droplet_values, real *calc_values){
     int i;
-    for (i = 0; i < 7; i++){
+    for (i = 0; i < 8; i++){
         droplet_values[i] = 0.;
     }
-    for (i = 0; i < 3; i++){
+    for (i = 0; i < 2; i++){
         calc_values[i] = 0.;
     }
 }
@@ -18,49 +18,49 @@ void reset(real *droplet_values, real *calc_values){
 void first_value_update(real *droplet_values, real *calc_values, cell_t cell, Thread *cell_thread){
 
     droplet_values[0] = C_VOLUME(cell, cell_thread) * calc_values[0];
-    calc_values[1] = droplet_values[0] * SECONDARY_DENSITY;
+    droplet_values[7] = droplet_values[0] * SECONDARY_DENSITY;
 
     real temp[3];
     C_CENTROID(temp, cell, cell_thread);
-    droplet_values[1] = temp[0] * calc_values[1];
-    droplet_values[2] = temp[1] * calc_values[1];
-    droplet_values[3] = temp[2] * calc_values[1];
+    droplet_values[1] = temp[0] * droplet_values[7];
+    droplet_values[2] = temp[1] * droplet_values[7];
+    droplet_values[3] = temp[2] * droplet_values[7];
 
-    droplet_values[4] = C_U(cell, cell_thread) * calc_values[1];
-    droplet_values[5] = C_V(cell, cell_thread) * calc_values[1];
-    droplet_values[6] = C_W(cell, cell_thread) * calc_values[1];
+    droplet_values[4] = C_U(cell, cell_thread) * droplet_values[7];
+    droplet_values[5] = C_V(cell, cell_thread) * droplet_values[7];
+    droplet_values[6] = C_W(cell, cell_thread) * droplet_values[7];
 }
 
 // Calculate values for each subsequent cell in droplet
 void subsequent_value_update(real *droplet_values, real *calc_values, cell_t adjacent_cell, Thread *cell_thread){
 
-    calc_values[2] = C_VOLUME(adjacent_cell, cell_thread) * calc_values[0];
+    calc_values[1] = C_VOLUME(adjacent_cell, cell_thread) * calc_values[0];
 
-    droplet_values[0] += calc_values[2];
+    droplet_values[0] += calc_values[1];
 
-    calc_values[2] *= SECONDARY_DENSITY;
+    calc_values[1] *= SECONDARY_DENSITY;
 
-    calc_values[1] += calc_values[2];
+    droplet_values[7] += calc_values[1];
 
     real temp[3];
     C_CENTROID(temp, adjacent_cell, cell_thread);
-    droplet_values[1] += temp[0] * calc_values[2];
-    droplet_values[2] += temp[1] * calc_values[2];
-    droplet_values[3] += temp[2] * calc_values[2];
+    droplet_values[1] += temp[0] * calc_values[1];
+    droplet_values[2] += temp[1] * calc_values[1];
+    droplet_values[3] += temp[2] * calc_values[1];
 
-    droplet_values[4] += C_U(adjacent_cell, cell_thread) * calc_values[2];
-    droplet_values[5] += C_V(adjacent_cell, cell_thread) * calc_values[2];
-    droplet_values[6] += C_W(adjacent_cell, cell_thread) * calc_values[2];
+    droplet_values[4] += C_U(adjacent_cell, cell_thread) * calc_values[1];
+    droplet_values[5] += C_V(adjacent_cell, cell_thread) * calc_values[1];
+    droplet_values[6] += C_W(adjacent_cell, cell_thread) * calc_values[1];
 }
 
 // Calculate final values
 void final_value_update(real *droplet_values, real *calc_values){
 
-    droplet_values[1] /= calc_values[1];
-    droplet_values[2] /= calc_values[1];
-    droplet_values[3] /= calc_values[1];
-
-    droplet_values[4] /= calc_values[1];
-    droplet_values[5] /= calc_values[1];
-    droplet_values[6] /= calc_values[1];
+    droplet_values[1] /= droplet_values[7];
+    droplet_values[2] /= droplet_values[7];
+    droplet_values[3] /= droplet_values[7];
+    
+    droplet_values[4] /= droplet_values[7];
+    droplet_values[5] /= droplet_values[7];
+    droplet_values[6] /= droplet_values[7];
 }

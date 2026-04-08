@@ -1,4 +1,4 @@
-;fluent 3ddp -i journal.jou -gu -t0 -driver null
+;fluent 3ddp -i journal.jou -gu -t1 -driver null
 
 /file/set-batch-options yes yes no
 /mesh/adapt/set/method/hanging-node
@@ -24,12 +24,12 @@
 ;run on-demand
 /define/user-defined/execute-on-demand "calculate_droplet_sizes::libudf"
 
-(Do ((x 2 (+ x 1))) ((> x 38))
-    (ti-menu-load-string (format #f "file read-case-data data/data_~a.cas.h5 o" x))
-    (ti-menu-load-string (format #f "file read-data data/data_~a.dat.h5 o" x))
-    (ti-menu-load-string (format #f "/define/user-defined/user-defined-memory 1"))
-    (ti-menu-load-string (format #f "/define/user-defined/execute-on-demand \"calculate_droplet_sizes::libudf\""))
-)
+;(Do ((x 2 (+ x 1))) ((> x 38))
+;    (ti-menu-load-string (format #f "file read-case-data data/data_~a.cas.h5 o" x))
+;    (ti-menu-load-string (format #f "file read-data data/data_~a.dat.h5 o" x))
+;    (ti-menu-load-string (format #f "/define/user-defined/user-defined-memory 1"))
+;    (ti-menu-load-string (format #f "/define/user-defined/execute-on-demand \"calculate_droplet_sizes::libudf\""))
+;)
 
 
 ;/rc "data/data_2.cas.h5" ok
