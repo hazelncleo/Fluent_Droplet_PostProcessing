@@ -1,6 +1,8 @@
 #ifndef STACK_H_   /* Include guard */
 #define STACK_H_
 
+#define _CRT_SECURE_NO_WARNINGS
+#define _CRT_NONSTDC_NO_WARNINGS
 #include "udf.h"
 #include <stdbool.h>
 
