@@ -4,7 +4,7 @@
 
 void node_zero_send_data(){
     
-    int message, droplet_id = 2;
+    int message, cell_to_explore_from, droplet_id = 2;
     int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
     bool all_nodes_completed = false;
     real droplet_values[8] = {0.};

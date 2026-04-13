@@ -45,7 +45,7 @@ void save_line_to_file(FILE *fptr, real *droplet_values, int droplet_id){
 
 int receive_node_zero_data(FILE *fptr){
     
-    int message, droplet_id = 1, n_droplets_outside = 0;
+    int message, cell_to_explore_from, droplet_id = 1, n_droplets_outside = 0;
     real droplet_values[8] = {0.};
 
     while (true) {
@@ -67,6 +67,8 @@ int receive_node_zero_data(FILE *fptr){
             // Receive values for droplet & save values & id
             PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
             n_droplets_outside++;
+
+            // Node id = 0, droplet_id, cell, values
         }
         droplet_id += compute_node_count;
     }
@@ -76,7 +78,7 @@ int receive_node_zero_data(FILE *fptr){
 
 int receive_compute_node_data(FILE *fptr, int n_droplets_outside){
 
-    int message, droplet_id = 2;
+    int message, cell_to_explore_from, droplet_id = 2;
     int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
     bool all_nodes_completed = false;
     real droplet_values[8] = {0.};
@@ -123,8 +125,20 @@ int receive_compute_node_data(FILE *fptr, int n_droplets_outside){
 
 
 void combine_boundary_droplets(FILE *fptr, int n_droplets_outside){
-    // TODO
+    int message[2];
+
+    while (true) {
+
+        PRF_CRECV_INT(node_zero, message, 2, node_zero);
+
+        if (message[0] == -1){
+            break;
+        } else {
+            Message("Droplet %d, has %d connected\n", message[0], message[1]);
+        }
+    }
 }
+
 
 
 void host_process(){
@@ -139,6 +153,8 @@ void host_process(){
 
     // Combine droplets on boundaries
     combine_boundary_droplets(fptr, n_droplets_outside);
+
+    Message("\n---------------------------\nN Droplets outside: %d\n---------------------------\n",n_droplets_outside);
     
     fclose(fptr);
 }

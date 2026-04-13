@@ -11,8 +11,17 @@
 #include "node_host.h"
 #include "node_zero.h"
 
-void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id);
+#define MAX_DROPLET_COMBINES 250
 
-void compute_droplet_data();
+
+void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, Stack *cells_to_reexplore);
+
+void compute_droplet_data(Stack *cells_to_reexplore);
+
+void init_udm();
+
+bool unique(int *attached_droplets, int n_droplets, int new_droplet_id);
+
+void assemble_droplets(Stack *cells_to_reexplore);
 
 #endif
