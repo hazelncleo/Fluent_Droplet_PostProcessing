@@ -6,16 +6,17 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include "udf.h"
+#include "data_storage.h"
 
 FILE *file_handler();
 
 void save_line_to_file(FILE *fptr, real *droplet_values, int droplet_id);
 
-int receive_node_zero_data(FILE *fptr);
+void receive_node_zero_data(FILE *fptr, Datastorage *datastorage);
 
-int receive_compute_node_data(FILE *fptr, int n_droplets_outside);
+void receive_compute_node_data(FILE *fptr, Datastorage *datastorage);
 
-void combine_boundary_droplets(FILE *fptr, int n_droplets_outside);
+void combine_boundary_droplets(FILE *fptr, Datastorage *datastorage);
 
 void host_process();
 

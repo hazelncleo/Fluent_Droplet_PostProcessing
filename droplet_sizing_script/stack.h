@@ -8,7 +8,7 @@
 #include "udf.h"
 
 #define MAX_STACK_SIZE 1000000
-#define MAX_N_GAPS 10000
+#define MAX_N_GAPS 1000
 
 // Define a structure for the stack
 typedef struct {

@@ -49,3 +49,34 @@ void node_zero_send_data(){
         droplet_id++;
     }
 }
+
+
+void node_zero_send_droplet_connections(){
+    int message;
+    int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
+    bool all_nodes_completed = false;
+
+    while (!all_nodes_completed) {
+
+        all_nodes_completed = true;
+
+        for (int current_node = 1; current_node < compute_node_count; current_node++){
+            if (nodes_completed[current_node - 1] == 0){
+
+                // Receive message, -1 = done, else is size of int array to receive
+                PRF_CRECV_INT(current_node, &message, 1, current_node);
+                PRF_CSEND_INT(node_host, &message, 1, myid);
+
+                if (message == -1){
+                    nodes_completed[current_node-1] = 1;
+                } else {
+                    int *droplet_ids = (int*)malloc(message * sizeof(int));
+                    PRF_CRECV_INT(current_node, droplet_ids, message, current_node);
+                    PRF_CSEND_INT(node_host, droplet_ids, message, myid);
+                    all_nodes_completed = false;
+                }
+            }
+        }
+
+    }
+}

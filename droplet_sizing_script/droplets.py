@@ -5,9 +5,10 @@ import seaborn as sns
 import glob
 import os
 
-if False:
+if True:
+
     df1 = pd.read_csv('droplet_sizing_script/correct.csv')
-    df2 = pd.read_csv('droplet_sizing_script/wrong.csv')
+    df2 = pd.read_csv('droplet_sizing_script/droplets_3378.csv')
 
     df1=df1[df1['volume'] < 1e-15]
     df2=df2[df2['volume'] < 1e-15]
@@ -18,12 +19,13 @@ if False:
     vz1 = df1['vz']
 
     volume2 = df2['volume']*1e18
+    print(max(volume1),max(volume2))
     vx2 = df2['vx']
     vy2 = df2['vy']
     vz2 = df2['vz']
 
-    velocity1 = np.sqrt(vx1**2 + vy1**2 + vz1**2)
-    velocity2 = np.sqrt(vx2**2 + vy2**2 + vz2**2)
+    velocity1 = np.sqrt(vx1*vx1 + vy1*vy1 + vz1*vz1)
+    velocity2 = np.sqrt(vx2*vx2 + vy2*vy2 + vz2*vz2)
     diameter1 = 2 * np.cbrt((3 / (4 * np.pi)) * volume1)
     diameter2 = 2 * np.cbrt((3 / (4 * np.pi)) * volume2)
 

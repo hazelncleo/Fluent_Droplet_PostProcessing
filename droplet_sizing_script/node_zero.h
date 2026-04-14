@@ -8,4 +8,6 @@
 
 void node_zero_send_data();
 
+void node_zero_send_droplet_connections();
+
 #endif

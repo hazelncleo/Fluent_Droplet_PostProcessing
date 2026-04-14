@@ -1,7 +1,5 @@
 #include "stack.h"
 
-#define MAX_STACK_SIZE 1000000
-
 // Function to initialize the stack
 void initialize(Stack *stack) {
     stack->top = -1;

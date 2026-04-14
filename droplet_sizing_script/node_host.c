@@ -43,9 +43,9 @@ void save_line_to_file(FILE *fptr, real *droplet_values, int droplet_id){
 }
 
 
-int receive_node_zero_data(FILE *fptr){
+void receive_node_zero_data(FILE *fptr, Datastorage *datastorage){
     
-    int message, cell_to_explore_from, droplet_id = 1, n_droplets_outside = 0;
+    int message, cell_to_explore_from, droplet_id = 1;
     real droplet_values[8] = {0.};
 
     while (true) {
@@ -66,17 +66,14 @@ int receive_node_zero_data(FILE *fptr){
         } else if (message == 1) {
             // Receive values for droplet & save values & id
             PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
-            n_droplets_outside++;
-
-            // Node id = 0, droplet_id, cell, values
+            addValues(datastorage, droplet_values, droplet_id);
         }
         droplet_id += compute_node_count;
     }
-    return n_droplets_outside;
 }
 
 
-int receive_compute_node_data(FILE *fptr, int n_droplets_outside){
+void receive_compute_node_data(FILE *fptr, Datastorage *datastorage){
 
     int message, cell_to_explore_from, droplet_id = 2;
     int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
@@ -112,7 +109,7 @@ int receive_compute_node_data(FILE *fptr, int n_droplets_outside){
 
                 } else if (message == 1) {
                     PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
-                    n_droplets_outside++;
+                    addValues(datastorage, droplet_values, droplet_id);
                     all_nodes_completed = false;
                 }
             }
@@ -120,41 +117,83 @@ int receive_compute_node_data(FILE *fptr, int n_droplets_outside){
         }
         droplet_id++;
     }
-    return n_droplets_outside;
 }
 
 
-void combine_boundary_droplets(FILE *fptr, int n_droplets_outside){
-    int message[2];
+void combine_boundary_droplets(FILE *fptr, Datastorage *datastorage){
+    int message;
+    int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
+    bool all_nodes_completed = false;
 
+    // Receive node zero droplet data
     while (true) {
 
-        PRF_CRECV_INT(node_zero, message, 2, node_zero);
+        PRF_CRECV_INT(node_zero, &message, 1, node_zero);
 
-        if (message[0] == -1){
+        if (message == -1){
             break;
         } else {
-            Message("Droplet %d, has %d connected\n", message[0], message[1]);
+            int *droplet_ids = (int*)malloc(message * sizeof(int));
+            PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
+            assignDroplets(datastorage, message, droplet_ids);
         }
     }
-}
 
+    // Receive other compute nodes droplet data
+    while (!all_nodes_completed) {
+
+        all_nodes_completed = true;
+
+        for (int current_node = 1; current_node < compute_node_count; current_node++){
+            if (nodes_completed[current_node - 1] == 0){
+
+                // Receive message, -1 = done, else is size of int array to receive
+                PRF_CRECV_INT(node_zero, &message, 1, node_zero);
+
+                if (message == -1){
+                    nodes_completed[current_node-1] = 1;
+                } else {
+                    int *droplet_ids = (int*)malloc(message * sizeof(int));
+                    PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
+                    assignDroplets(datastorage, message, droplet_ids);
+                    all_nodes_completed = false;
+                }
+            }
+        }
+
+    }
+
+    real droplet_values[8];
+    int droplet_id;
+    Message("N Droplets: %d\n", datastorage->n_droplets);
+
+    for (int combination_id = 1; combination_id < datastorage->n_to_combine; combination_id++){
+
+        memset(droplet_values, (real) 0., 8 * sizeof(real));
+        droplet_id = getValues(datastorage, droplet_values, combination_id);
+
+        if (droplet_id > 0){
+            save_line_to_file(fptr, droplet_values, droplet_id);
+        }
+        
+    }
+}
 
 
 void host_process(){
 
     FILE *fptr = file_handler();
 
+    Datastorage datastorage; 
+
     // Write node 0 first
-    int n_droplets_outside = receive_node_zero_data(fptr);
+    receive_node_zero_data(fptr, &datastorage);
 
     // Write other compute nodes
-    n_droplets_outside = receive_compute_node_data(fptr, n_droplets_outside);
+    receive_compute_node_data(fptr, &datastorage);
 
     // Combine droplets on boundaries
-    combine_boundary_droplets(fptr, n_droplets_outside);
+    combine_boundary_droplets(fptr, &datastorage);
 
-    Message("\n---------------------------\nN Droplets outside: %d\n---------------------------\n",n_droplets_outside);
-    
     fclose(fptr);
 }

@@ -5,8 +5,34 @@
 #define _CRT_NONSTDC_NO_WARNINGS
 #include "udf.h"
 #include <stdio.h>
+#include <stdbool.h>
 
 #define SECONDARY_DENSITY 997. // water density kg/m^3
+#define MAX_COMBINE_DROPLETS 2000
+
+typedef struct {
+    int droplet_ids[MAX_COMBINE_DROPLETS];
+    int combination_ids[MAX_COMBINE_DROPLETS];
+    int n_droplets;
+    int n_to_combine;
+    real droplet_values[MAX_COMBINE_DROPLETS][8];
+} Datastorage;
+
+void initializeDatastorage(Datastorage *datastorage);
+
+bool isComplete(Datastorage *datastorage);
+
+void addValues(Datastorage *datastorage, real *droplet_values, int droplet_id);
+
+int getIndex(Datastorage *datastorage, int droplet_id);
+
+int checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets);
+
+void assignDroplets(Datastorage *datastorage, int n_to_assign, int *droplets);
+
+int getValues(Datastorage *datastorage, real *droplet_values, int combination_id);
+
+void add_vec(real *droplet_values, real *values_to_add);
 
 // Calculate initial values for first cell in droplet
 void first_value_update(real *droplet_values, real vof, cell_t cell, Thread *cell_thread);
