@@ -1,0 +1,1110 @@
+#include "vof_droplet_sizing.h"
+
+
+/*
+ *   UDF Functions
+ */
+
+
+DEFINE_EXECUTE_ON_LOADING(on_loading, libname) {
+
+    if (udm_offset == UDM_UNRESERVED) {
+        udm_offset = Reserve_User_Memory_Vars(NUM_UDM);
+    }
+
+    if (udm_offset == UDM_UNRESERVED) {
+        Message("\nThe library: \"%s\" requires %d UDMs to be defined before loading.\n", libname, NUM_UDM);
+    } else {
+        Message("\n%d UDMs have been reserved for the library: \"%s\".\n", NUM_UDM, libname);
+        Set_User_Memory_Name(udm_offset, "Droplet_id");
+    }
+}
+
+
+DEFINE_EXECUTE_AT_END(multithreaded_droplet_sizes_runtime) {
+    multithreaded_calculation();
+}
+
+
+DEFINE_EXECUTE_AT_END(singlethreaded_droplet_sizes_runtime) {
+    singlethreaded_calculation();
+}
+
+
+DEFINE_ON_DEMAND(droplet_sizes_ondemand) {
+
+    if (MULTIPLE_COMPUTE_NODE_P) {
+        multithreaded_calculation();
+    } else {
+        singlethreaded_calculation();
+    }
+}
+
+
+/*
+ *   Main control functions
+ */
+
+
+void multithreaded_calculation() {
+
+    clock_t begin = clock();
+
+    #if !RP_HOST
+
+        Stack cells_to_reexplore;
+        initialize(&cells_to_reexplore);
+
+        init_udm();
+
+        compute_droplet_data(&cells_to_reexplore);
+
+        if I_AM_NODE_ZERO_P {
+            node_zero_send_data();
+        }
+
+        assemble_droplets(&cells_to_reexplore);
+
+        if I_AM_NODE_ZERO_P {
+            node_zero_send_droplet_connections();
+        }
+
+    #endif
+
+    #if !RP_NODE
+        Message("\n");
+        host_process();
+    #endif
+
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+    #if !RP_NODE
+        Message("Host node, completed successfully in %.3f seconds\n", time_spent);
+    #else
+        Message("Node %d, completed successfully in %.3f seconds\n", myid, time_spent);
+    #endif
+}
+
+/* TODO */
+void singlethreaded_calculation() {
+
+    clock_t begin = clock();
+
+    #if !RP_HOST
+
+        init_udm();
+
+        compute_droplet_data();
+
+    #endif
+
+    #if !RP_NODE
+        Message("\n");
+        host_process_singlethreaded();
+    #endif
+
+    clock_t end = clock();
+    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+    #if !RP_NODE
+        Message("Host node, completed successfully in %.3f seconds\n", time_spent);
+    #else
+        Message("Compute node, completed successfully in %.3f seconds\n", time_spent);
+    #endif
+}
+
+
+/*
+ *   Compute node functions TODO
+ */
+
+
+/* Initialize the values of the UDM to 0 */
+void init_udm() {
+
+    Domain *mixture_domain = Get_Domain(1);
+
+    Thread *cell_thread, **pt;
+
+    cell_t cell;
+
+    if (udm_offset != UDM_UNRESERVED) {
+
+        mp_thread_loop_c(cell_thread, mixture_domain, pt) {
+
+            if (FLUID_THREAD_P(cell_thread)) {
+
+                begin_c_loop_int(cell, cell_thread) {
+
+                    /* Set UDM to 0 */
+                    C_UDMI(cell, cell_thread, udm_offset) = 0;
+
+                } end_c_loop_int(cell, cell_thread)
+            }
+        }
+
+    } else {
+        Error("UDM has not been reserved\n");
+    }
+
+}
+
+
+/* TODO */
+void compute_droplet_data_singlethreaded() {
+
+    Message("Compute node initializing\n");
+
+    Domain *mixture_domain;
+    mixture_domain = Get_Domain(1);
+
+    Thread *cell_thread, *phase_thread, **pt;
+
+    cell_t cell;
+
+    int cell_explored, message, droplet_id;
+    droplet_id = 1;
+    message = -1;
+
+    real vof;
+
+    Message("Compute node initialized\n");
+
+    mp_thread_loop_c(cell_thread, mixture_domain, pt){
+        if (FLUID_THREAD_P(cell_thread)){
+
+            phase_thread = pt[DROPLET_PHASE];
+
+            begin_c_loop_int(cell, cell_thread){
+
+                vof = C_VOF(cell, phase_thread);
+                cell_explored = C_UDMI(cell, cell_thread, udm_offset);
+
+                /* If cell is in new droplet, perform floodfill algorithm */
+                if ((cell_explored == 0) && (vof > 0.5)) {
+
+                    found_new_droplet_singlethreaded(cell, cell_thread, phase_thread, droplet_id);
+                    ++droplet_id;
+
+                } else if (cell_explored == 0) {
+
+                    /* If cell is not in droplet, set to explored */
+                    C_UDMI(cell, cell_thread, udm_offset) = -1;
+                }
+            }
+            end_c_loop_int(cell,cell_thread)
+        }
+    }
+
+    /* Send finished computing message to host node */
+    PRF_CSEND_INT(node_host, &message, 1, droplet_id);
+}
+
+
+/* TODO */
+void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id) {
+
+    Stack stack;
+    initialize(&stack);
+
+    Thread *cell_face_thread;
+
+    cell_t current_cell, adjacent_cell;
+
+    face_t cell_face;
+
+    int cell_explored, local_face_id, message;
+    message = 0;
+
+    real vof, *droplet_values;
+    vof = C_VOF(first_cell, water_thread);
+    droplet_values = (real*)calloc(8, sizeof(real));    /* 0 = vol, 1 = mass, 2-4 = centroid, 5-7 = velocity */
+
+    C_UDMI(first_cell, cell_thread, udm_offset) = droplet_id;
+    push(&stack, first_cell);
+
+    first_value_update(droplet_values, vof, first_cell, cell_thread);
+
+    while (!isEmpty(&stack)) {
+
+        current_cell = pop(&stack);
+
+        /* Loop over faces of current cell */
+        c_face_loop(current_cell, cell_thread, local_face_id){
+
+            /* Get global face & face thread values */
+            cell_face = C_FACE(current_cell, cell_thread, local_face_id);
+            cell_face_thread = C_FACE_THREAD(current_cell, cell_thread, local_face_id);
+
+            /* If the face is not on the boundary */
+            if (!BOUNDARY_FACE_THREAD_P(cell_face_thread)){
+
+                /* Get the adjacent cell */
+                adjacent_cell = F_C0(cell_face, cell_face_thread);
+                if (adjacent_cell == current_cell) {
+                    adjacent_cell = F_C1(cell_face, cell_face_thread);
+                }
+
+                vof = C_VOF(adjacent_cell, water_thread);
+                cell_explored = C_UDMI(adjacent_cell, cell_thread, udm_offset);
+
+                /* If new cell has not been explored and is droplet */
+                if ((cell_explored == 0) && (vof > 0.5)) {
+
+                    /* Push cell to the stack, set its droplet id and add values to the droplet */
+                    push(&stack, adjacent_cell);
+                    C_UDMI(adjacent_cell, cell_thread, udm_offset) = droplet_id;
+                    subsequent_value_update(droplet_values, vof, adjacent_cell, cell_thread);
+
+
+                } else if (cell_explored == 0) {
+
+                    /* Cell not in droplet */
+                    C_UDMI(adjacent_cell, cell_thread, udm_offset) = -1;
+                }
+            }
+        }
+    }
+
+    /* Divide centroid & velocity by mass */
+    final_value_update(droplet_values);
+
+    /* Send message to the host & send final droplet values */
+    PRF_CSEND_INT(node_host, &message, 1, droplet_id);
+    PRF_CSEND_REAL(node_host, droplet_values, 8, droplet_id);
+}
+
+
+/* TODO */
+void compute_droplet_data(Stack *cells_to_reexplore) {
+
+    Message("Node %d initializing\n", myid);
+    Domain *mixture_domain = Get_Domain(1);
+    Thread *cell_thread, *water_thread, **pt;
+    cell_t cell;
+    int cell_explored, message, droplet_id = myid + 1;
+    int receiving_node = (I_AM_NODE_ZERO_P ? node_host : node_zero); // If node zero send to host, otherwise send to node zero
+    real vof;
+
+    Message("Node %d initialized\n", myid);
+
+    mp_thread_loop_c(cell_thread, mixture_domain, pt){
+        if (FLUID_THREAD_P(cell_thread)){
+
+            water_thread = pt[DROPLET_PHASE];
+
+            begin_c_loop_int(cell, cell_thread){
+
+                vof = C_VOF(cell, water_thread);
+                cell_explored = C_UDMI(cell, cell_thread, udm_offset);
+
+                // Cell in new droplet
+                if (cell_explored == 0 && vof > 0.5) {
+
+                    found_new_droplet(cell, cell_thread, water_thread, droplet_id, cells_to_reexplore);
+                    droplet_id += compute_node_count;
+
+                } else if (cell_explored == 0) { // Cell not in droplet
+                    C_UDMI(cell, cell_thread, udm_offset) = -1;
+                }
+            }
+            end_c_loop_int(cell,cell_thread)
+        }
+    }
+    message = -1;
+    PRF_CSEND_INT(receiving_node, &message, 1, droplet_id);
+    EXCHANGE_SVAR_MESSAGE(mixture_domain, (SV_UDM_I, SV_NULL));
+}
+
+
+/* TODO */
+void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, Stack *cells_to_reexplore) {
+
+    real vof= C_VOF(first_cell, water_thread), temp_value, droplet_values[8] = {0.}; // 0 = vol, 1 = mass, 2-4 = centroid, 5-7 = velocity
+    int cell_explored, local_face_id, adjacent_cell_node_id, message;
+    int receiving_node = (I_AM_NODE_ZERO_P ? node_host : node_zero);
+    bool droplet_outside_cell = false;
+    Thread *cell_face_thread;
+    cell_t current_cell, adjacent_cell;
+    face_t cell_face;
+
+    Stack stack;
+    initialize(&stack);
+    C_UDMI(first_cell, cell_thread, udm_offset) = droplet_id; // Cell explored
+    push(&stack, first_cell); // Push to the stack
+
+    first_value_update(droplet_values, vof, first_cell, cell_thread);
+
+    while (!isEmpty(&stack)) {
+
+        current_cell = pop(&stack);
+
+        // Loop over faces of current cell
+        c_face_loop(current_cell, cell_thread, local_face_id){
+
+            cell_face = C_FACE(current_cell, cell_thread, local_face_id);
+            cell_face_thread = C_FACE_THREAD(current_cell, cell_thread, local_face_id);
+
+            // If the face is not on the boundary
+            if (!BOUNDARY_FACE_THREAD_P(cell_face_thread)){
+
+                // Get the new adjacent cell
+                adjacent_cell = F_C0(cell_face, cell_face_thread);
+                if (adjacent_cell == current_cell) {
+                    adjacent_cell = F_C1(cell_face, cell_face_thread);
+                }
+
+                vof = C_VOF(adjacent_cell, water_thread);
+                cell_explored = C_UDMI(adjacent_cell, cell_thread, udm_offset);
+
+                // If new cell has not been explored and is droplet
+                if (cell_explored == 0 && vof > 0.5) {
+
+                    adjacent_cell_node_id = C_PART(adjacent_cell, cell_thread);
+
+                    if (adjacent_cell_node_id == myid) {
+
+                        push(&stack, adjacent_cell);
+                        C_UDMI(adjacent_cell, cell_thread, udm_offset) = droplet_id;
+                        subsequent_value_update(droplet_values, vof, adjacent_cell, cell_thread);
+
+                    } else {
+                        droplet_outside_cell = true;
+                        push(cells_to_reexplore, adjacent_cell);
+                    }
+
+                } else if (cell_explored == 0) {
+                    C_UDMI(adjacent_cell, cell_thread, udm_offset) = -1;
+                }
+            }
+        }
+    }
+
+    if (!droplet_outside_cell){
+
+        final_value_update(droplet_values);
+
+        message = 0;
+        PRF_CSEND_INT(receiving_node, &message, 1, droplet_id);
+        PRF_CSEND_REAL(receiving_node, droplet_values, 8, droplet_id);
+
+    } else {
+
+        message = 1;
+        PRF_CSEND_INT(receiving_node, &message, 1, droplet_id);
+        PRF_CSEND_REAL(receiving_node, droplet_values, 8, droplet_id);
+
+        push(cells_to_reexplore, first_cell);
+        addGap(cells_to_reexplore);
+    }
+}
+
+
+/* TODO */
+void assemble_droplets(Stack *cells_to_reexplore) {
+    Domain *mixture_domain = Get_Domain(1);
+    Thread *cell_thread, **pt;
+    cell_t cell;
+    int current_droplet_id, attached_droplets[MAX_COMBINE_DROPLETS] = {0}, n_droplets = -1, new_droplet_id, message;
+    int receiving_node = (I_AM_NODE_ZERO_P ? node_host : node_zero);
+    mp_thread_loop_c(cell_thread, mixture_domain, pt){
+
+        if (FLUID_THREAD_P(cell_thread)){
+
+            while(!isEmpty(cells_to_reexplore)) {
+
+                if (isGap(cells_to_reexplore)){
+
+                    if (n_droplets >= 0){
+                        send_droplet_message(n_droplets, attached_droplets, receiving_node);
+                    }
+
+                    remGap(cells_to_reexplore);
+                    cell = pop(cells_to_reexplore);
+                    attached_droplets[0] = C_UDMI(cell, cell_thread, udm_offset);
+                    n_droplets = 1;
+
+                } else {
+                    cell = pop(cells_to_reexplore);
+                    new_droplet_id = C_UDMI(cell, cell_thread, udm_offset);
+
+                    if (droplet_in_array(attached_droplets, n_droplets, new_droplet_id)){
+                        attached_droplets[n_droplets++] = new_droplet_id;
+                    }
+                }
+            }
+
+            // Send final droplet information
+            if (n_droplets > 0){
+                send_droplet_message(n_droplets, attached_droplets, receiving_node);
+            }
+
+            message = -1;
+            PRF_CSEND_INT(receiving_node, &message, 1, myid);
+        }
+    }
+}
+
+
+/* Check if a droplet id is already in an array of droplet ids */
+int droplet_in_array(int *attached_droplets, int n_droplets, int new_droplet_id) {
+
+    for (int droplet = 0; droplet < n_droplets; droplet++){
+        if (attached_droplets[droplet] == new_droplet_id) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+
+/* Send array of droplet ids to the receiving node */
+void send_droplet_message(int array_size, int *attached_droplets, int receiving_node) {
+
+    /* Allocate int array and assign values */
+    int *droplet_ids = (int*)malloc(array_size * sizeof(int));
+
+    for (int droplet = 0; droplet < array_size; ++droplet) {
+        droplet_ids[droplet] = attached_droplets[droplet];
+    }
+
+    /* Send size of array and then the array to the receiving node */
+    PRF_CSEND_INT(receiving_node, &array_size, 1, myid);
+    PRF_CSEND_INT(receiving_node, droplet_ids, array_size, myid);
+}
+
+
+/*
+ *   Stack functions
+ */
+
+
+/* Initialize the stack */
+void initialize(Stack *stack) {
+    stack->top = -1;
+    stack->n_gaps = 0;
+}
+
+
+/* Check if the stack is empty */
+int isEmpty(Stack *stack) {
+    if (stack->top == -1) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+/* Check if the stack is full */
+int isFull(Stack *stack) {
+    if (stack->top >= MAX_STACK_SIZE - 1){
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+/* Check if a gap is on top of the stack */
+int isGap(Stack *stack) {
+    if ((stack->n_gaps > 0) && (stack->gaps[stack->n_gaps-1] == stack->top)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+/* Push a cell onto the stack */
+void push(Stack *stack, cell_t cell) {
+    if (isFull(stack)) {
+        Error("The stack on Node %d is full\n", myid);
+    }
+    stack->arr[++stack->top] = cell;
+}
+
+
+/* Add a gap onto the stack to seperate values */
+void addGap(Stack *stack) {
+    stack->gaps[stack->n_gaps++] = ++stack->top;
+}
+
+
+/* Remove a gap from the top of the stack */
+int remGap(Stack *stack) {
+    if (isGap(stack)){
+        stack->n_gaps--;
+        stack->top--;
+    } else {
+        Error("Tried to remove gap from stack on node %d, but top is not a gap\n", myid);
+    }
+}
+
+
+/* Pop the top value off the stack */
+cell_t pop(Stack *stack) {
+
+    cell_t popped;
+
+    if (isEmpty(stack)) {
+        Error("Tried to pop value off an empty stack on node %d\n", myid);
+    } else if (isGap(stack)) {
+        Error("Tried to pop value off stack, but was a gap on node %d\n", myid);
+    }
+
+    stack->top--;
+    popped = stack->arr[stack->top];
+
+    return popped;
+}
+
+
+/*
+ *   Data storage functions
+ */
+
+
+/* Initialize the data storage values to 0 */
+void initializeDatastorage(Datastorage *datastorage) {
+
+    datastorage->n_droplets = 0;                                                    /* Total number of droplet values that have been saved */
+    datastorage->n_to_combine = 0;                                                  /* Total number of droplets after combining */
+    memset(datastorage->combination_ids, 0, MAX_COMBINE_DROPLETS * sizeof(int));    /* Array of temporary IDs to help with combining */
+}
+
+
+/* Add a droplets values and ID to the storage object */
+void addValues(Datastorage *datastorage, real *droplet_values, int droplet_id) {
+
+    /* Save droplet values */
+    for (int droplet_value = 0; droplet_value < 8; ++droplet_value) {
+        datastorage->droplet_values[datastorage->n_droplets][droplet_value] = droplet_values[droplet_value];
+    }
+
+    /* Save droplet id & Increment number of droplets saved */
+    datastorage->droplet_ids[datastorage->n_droplets] = droplet_id;
+    datastorage->n_droplets++;
+}
+
+
+/* Get the index of a given droplet id */
+int getIndex(Datastorage *datastorage, int droplet_id) {
+
+    for (int index = 0; index < datastorage->n_droplets; ++index) {
+        if (datastorage->droplet_ids[index] == droplet_id){
+            return index;
+        }
+    }
+    Error("Error finding droplet");
+    return -1;
+}
+
+
+/*
+ *  Check if any of droplets in array "droplets" have already been assigned
+ *  If they have then return that id
+ *  otherwise return an unassigned id
+ */
+int checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets) {
+
+    int index, combination_id;
+    combination_id = datastorage->n_to_combine + 1; /* Set to unassigned id */
+
+    for (int current_droplet = 0; current_droplet < n_to_assign; ++current_droplet) {
+
+        index = getIndex(datastorage, droplets[current_droplet]); /* Get index of current droplet in datastorage */
+
+        /* If droplet is assigned and its id is less than the current id reassign it */
+        if (datastorage->combination_ids[index] > 0 && datastorage->combination_ids[index] < combination_id) {
+            combination_id = datastorage->combination_ids[index];
+        }
+    }
+
+    /* If droplet is not attached to any current droplets increment number of combined droplets */
+    if (combination_id == datastorage->n_to_combine + 1) {
+        datastorage->n_to_combine++;
+    }
+
+    return combination_id;
+}
+
+/* Assign each droplet in array a combined id */
+/* TODO MIGHT NEED TO CATCH SOME EDGE CASES */
+void assignDroplets(Datastorage *datastorage, int n_to_assign, int *droplets) {
+
+    int combination_id = checkDropletsAssigned(datastorage, n_to_assign, droplets);
+
+    for (int droplet = 0; droplet < n_to_assign; ++droplet) {
+        datastorage->combination_ids[getIndex(datastorage, droplets[droplet])] = combination_id;
+    }
+}
+
+
+/* Combine the values for a combination droplet */
+int getValues(Datastorage *datastorage, real *droplet_values, int combination_id) {
+
+    int droplet_id = 0;
+
+    for (int current_droplet = 0; current_droplet < datastorage->n_droplets; ++current_droplet) {
+
+        /* If the droplet is part of the combination droplet add its values */
+        if (datastorage->combination_ids[current_droplet] == combination_id) {
+
+            add_vectors(droplet_values, datastorage->droplet_values[current_droplet]);
+
+            /* Check if new id is less than current id */
+            if ((droplet_id == 0) || (datastorage->droplet_ids[current_droplet] < droplet_id)) {
+                droplet_id = datastorage->droplet_ids[current_droplet];
+            }
+        }
+    }
+
+    /* No droplets of this combination id found */
+    if (droplet_id == 0){
+        return -1;
+    }
+
+    /* Divide by the mass */
+    final_value_update(droplet_values);
+
+    return droplet_id;
+}
+
+
+/* Add one droplet values vector to another */
+void add_vectors(real *droplet_values, real *values_to_add) {
+    for (int value = 0; value < 8; ++value) {
+        droplet_values[value] += values_to_add[value];
+    }
+}
+
+
+/* Calculate initial values for first cell in droplet */
+void first_value_update(real *droplet_values, real vof, cell_t cell, Thread *cell_thread) {
+
+    real temp[3];
+    C_CENTROID(temp, cell, cell_thread);
+
+    droplet_values[0] = C_VOLUME(cell, cell_thread) * vof;      /* Calculate volume */
+    droplet_values[1] = droplet_values[0] * SECONDARY_DENSITY;  /* Calculate mass */
+
+    /* Calculate centroid */
+    droplet_values[2] = temp[0] * droplet_values[1];
+    droplet_values[3] = temp[1] * droplet_values[1];
+    droplet_values[4] = temp[2] * droplet_values[1];
+
+    /* Calculate velocity */
+    droplet_values[5] = C_U(cell, cell_thread) * droplet_values[1];
+    droplet_values[6] = C_V(cell, cell_thread) * droplet_values[1];
+    droplet_values[7] = C_W(cell, cell_thread) * droplet_values[1];
+}
+
+
+/* Update the values of a droplet with a new cells values */
+void subsequent_value_update(real *droplet_values, real vof, cell_t cell, Thread *cell_thread) {
+
+    real temp_value;
+    temp_value = C_VOLUME(cell, cell_thread) * vof; /* Calculate volume of current cell */
+    real temp_vector[3];
+    C_CENTROID(temp_vector, cell, cell_thread);
+
+    droplet_values[0] += temp_value;                /* Calculate total droplet volume */
+    temp_value *= SECONDARY_DENSITY;                /* Calculate current cell mass */
+    droplet_values[1] += temp_value;                /* Calculate total droplet mass */
+
+    /* Update centroid position */
+    droplet_values[2] += temp_vector[0] * temp_value;
+    droplet_values[3] += temp_vector[1] * temp_value;
+    droplet_values[4] += temp_vector[2] * temp_value;
+
+    /* Update velocity */
+    droplet_values[5] += C_U(cell, cell_thread) * temp_value;
+    droplet_values[6] += C_V(cell, cell_thread) * temp_value;
+    droplet_values[7] += C_W(cell, cell_thread) * temp_value;
+}
+
+
+/* Calculate final centroid and velocities by dividing by mass */
+void final_value_update(real *droplet_values) {
+
+    /* Final centroid values */
+    droplet_values[2] /= droplet_values[1];
+    droplet_values[3] /= droplet_values[1];
+    droplet_values[4] /= droplet_values[1];
+
+    /* Final velocity values */
+    droplet_values[5] /= droplet_values[1];
+    droplet_values[6] /= droplet_values[1];
+    droplet_values[7] /= droplet_values[1];
+}
+
+
+/*
+ *   Node zero functions
+ */
+
+
+/* Receive data from compute nodes and send to host */
+void node_zero_send_data() {
+
+    int message = 0, droplet_id = 2, all_nodes_completed = 0;
+    int* nodes_completed;
+    nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
+
+    real droplet_values[8] = {0.};
+
+    while (!all_nodes_completed) {
+
+        all_nodes_completed = 1;
+
+        for (int current_node = 1; current_node < compute_node_count; ++current_node) {
+            if (!nodes_completed[current_node - 1]) {
+
+                /*
+                 * message = -1 for no more droplets
+                 * message =  0 for droplet within single domain
+                 * message =  1 for droplet in more domains
+                 */
+                PRF_CRECV_INT(current_node, &message, 1, droplet_id);
+                PRF_CSEND_INT(node_host, &message, 1, droplet_id);
+
+                if (message == -1){
+                    nodes_completed[current_node] = 1;    /* Node calculations completed */
+                } else if (message >= 0){
+
+                    /* Receive values for droplet */
+                    PRF_CRECV_REAL(current_node, droplet_values, 8, droplet_id);
+                    PRF_CSEND_REAL(node_host, droplet_values, 8, droplet_id);
+
+                    all_nodes_completed = 0;    /* Keep looping */
+                }
+            }
+            droplet_id++;   /* Increment to next node */
+        }
+        droplet_id++;   /* Skip node zero */
+    }
+}
+
+
+/* Receive connection data from compute nodes and send to host */
+void node_zero_send_droplet_connections() {
+
+    int message = 0, all_nodes_completed = 0;
+    int *nodes_completed;
+    nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
+
+    while (!all_nodes_completed) {
+
+        all_nodes_completed = 1;
+
+        for (int current_node = 1; current_node < compute_node_count; ++current_node) {
+            if (!nodes_completed[current_node - 1]) {
+
+                /*
+                 * message = -1 for no more connections to receive
+                 * message >  0 message is equal to size of array to receive
+                 */
+                PRF_CRECV_INT(current_node, &message, 1, current_node);
+                PRF_CSEND_INT(node_host, &message, 1, myid);
+
+                if (message == -1) {
+                    nodes_completed[current_node-1] = 1;
+                } else {
+
+                    int *droplet_ids = (int*)malloc(message * sizeof(int));
+
+                    /* Receive connections for droplet and send to host */
+                    PRF_CRECV_INT(current_node, droplet_ids, message, current_node);
+                    PRF_CSEND_INT(node_host, droplet_ids, message, myid);
+
+                    all_nodes_completed = 0;    /* Keep looping */
+                }
+            }
+        }
+    }
+}
+
+
+/*
+ *   Host node functions
+ */
+
+
+/* Gets file name, creates file and writes header line */
+FILE *file_handler() {
+
+    char fname[50];
+
+    int max_len = sizeof(fname), timestep = N_TIME;
+
+    FILE *fptr = NULL;
+
+    /* Set filename to droplets_<timestep_number>.csv */
+    if (snprintf(fname, max_len, "droplets_%d.csv", timestep) >= max_len) {
+        Error("filename is larger than allocated buffer\n");
+    }
+
+    fptr = fopen(fname, "w");
+
+    if (fptr == NULL) {
+        Error("Error writing to file.\n");
+    }
+
+    Message("File: \"%s\" opened on host process.\n", fname);
+
+    /* droplet_id, volume of droplet, mass of droplet, x coord, y coord, z coord, u velocity, v velocity, w velocity */
+    fprintf(fptr, "droplet_id,volume,mass,x,y,z,u,v,w\n");
+
+    return fptr;
+}
+
+
+/* Saves droplet data to the file */
+void save_line_to_file(FILE *fptr, real *droplet_values, int droplet_id) {
+    fprintf(
+        fptr,
+        "%d,%e,%e,%e,%e,%e,%e,%e,%e\n",
+        droplet_id,        /* droplet id     */
+        droplet_values[0], /* droplet volume */
+        droplet_values[1], /* mass           */
+        droplet_values[2], /* x centroid     */
+        droplet_values[3], /* y centroid     */
+        droplet_values[4], /* z centroid     */
+        droplet_values[5], /* x velocity     */
+        droplet_values[6], /* y velocity     */
+        droplet_values[7]  /* z velocity     */
+    );
+}
+
+
+/* Receive data from single compute node */
+void receive_node_data_singlethreaded(FILE *fptr) {
+
+    int message, droplet_id;
+    droplet_id = 1;
+
+    real droplet_values[8] = {0.};
+
+    while (1) {
+
+        /*
+         * Get message from node zero
+         * -1 complete
+         * 0 droplet inside node
+         * 1 droplet outside node
+         */
+        PRF_CRECV_INT(node_zero, &message, 1, droplet_id);
+
+        if (message == -1){
+            break;
+        } else if (message == 0){
+            /* Receive values for droplet & save to file */
+            PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
+            save_line_to_file(fptr, droplet_values, droplet_id);
+        }
+        droplet_id++;
+    }
+}
+
+
+/* Receive data from node zero first pass */
+void receive_node_zero_data(FILE *fptr, Datastorage *datastorage) {
+
+    int message, droplet_id = 1;
+    real droplet_values[8] = {0.};
+
+    while (1) {
+
+        /*
+         * Get message from node zero
+         * -1 complete
+         *  0 droplet inside node
+         *  1 droplet outside node
+         */
+        PRF_CRECV_INT(node_zero, &message, 1, droplet_id);
+
+        if (message == -1){
+            break;
+        } else if (message == 0){
+
+            /* Receive values for droplet & save to file */
+            PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
+            save_line_to_file(fptr, droplet_values, droplet_id);
+
+        } else if (message == 1) {
+
+            /* Receive values for droplet & store */
+            PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
+            addValues(datastorage, droplet_values, droplet_id);
+
+        }
+        droplet_id += compute_node_count;
+    }
+}
+
+
+/* Receive data from each compute node through node zero (excluding node zero) */
+void receive_compute_node_data(FILE *fptr, Datastorage *datastorage) {
+
+    int message = 0, droplet_id = 2, all_nodes_completed = 0;
+    int* nodes_completed;
+    nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
+
+    real droplet_values[8] = {0.};
+
+    while (!all_nodes_completed) {
+
+        all_nodes_completed = 1;
+
+        for (int current_node = 1; current_node < compute_node_count; ++current_node) {
+            if (!nodes_completed[current_node - 1]) {
+
+                /*
+                 * Get message from node zero
+                 * -1 complete
+                 *  0 droplet inside node
+                 *  1 droplet outside node
+                 */
+                PRF_CRECV_INT(node_zero, &message, 1, droplet_id);
+
+                if (message == -1) {
+
+                    nodes_completed[current_node - 1] = 1; /* Node calculations completed */
+
+                } else if (message == 0) {
+
+                    /* Receive values for droplet and save to file */
+                    PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
+                    save_line_to_file(fptr, droplet_values, droplet_id);
+
+                    all_nodes_completed = 0;    /* Keep looping */
+
+                } else if (message == 1) {
+
+                    /* Receive values for droplet and & store */
+                    PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
+                    addValues(datastorage, droplet_values, droplet_id);
+
+                    all_nodes_completed = 0;    /* Keep looping */
+
+                }
+            }
+            droplet_id++;   /* Increment to next node */
+        }
+        droplet_id++;   /* Skip node zero */
+    }
+}
+
+
+/* Receive node zero droplet connection data */
+void receive_node_zero_connections(Datastorage *datastorage) {
+
+    int message;
+
+    while (1) {
+
+        /*
+         * message = -1 for no more connections to receive
+         * message >  0 message is equal to size of array to receive
+         */
+        PRF_CRECV_INT(node_zero, &message, 1, node_zero);
+
+        if (message == -1) {
+            break;
+        } else {
+
+            /* Received node connections and assign droplets */
+            int *droplet_ids = (int*)malloc(message * sizeof(int));
+            PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
+            assignDroplets(datastorage, message, droplet_ids);
+
+        }
+    }
+}
+
+
+/* Receive other compute nodes droplet connection data through node zero (excluding node zero) */
+void receive_compute_node_connections(Datastorage *datastorage) {
+    int message;
+    int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
+    int all_nodes_completed = 0;
+
+    while (!all_nodes_completed) {
+
+        all_nodes_completed = 1;
+
+        for (int current_node = 1; current_node < compute_node_count; current_node++) {
+            if (nodes_completed[current_node - 1] == 0) {
+
+                // Receive message from node zero
+                // -1 = no more messages
+                // >0 = size of array to receive
+                PRF_CRECV_INT(node_zero, &message, 1, node_zero);
+
+                if (message == -1){
+                    nodes_completed[current_node-1] = 1; // current node has no more messages to send
+                } else {
+                    int *droplet_ids = (int*)malloc(message * sizeof(int));
+                    PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
+                    assignDroplets(datastorage, message, droplet_ids);
+                    all_nodes_completed = 0;
+                }
+            }
+        }
+    }
+}
+
+
+/* Combine connected droplets on node boundaries */
+void combine_boundary_droplets(FILE *fptr, Datastorage *datastorage) {
+
+    int droplet_id;
+
+    real droplet_values[8];
+
+    for (int combination_id = 1; combination_id < datastorage->n_to_combine; ++combination_id) {
+
+        memset(droplet_values, (real) 0., 8 * sizeof(real)); /* Reset values to 0 */
+
+        droplet_id = getValues(datastorage, droplet_values, combination_id);
+
+        if (droplet_id > 0) {
+            save_line_to_file(fptr, droplet_values, droplet_id);
+        }
+    }
+}
+
+
+/* Host node main compute process singlethreaded */
+void host_process_singlethreaded() {
+
+    FILE *fptr = file_handler();
+
+    receive_node_data_singlethreaded(fptr);
+
+    fclose(fptr);
+}
+
+
+/* Host node main compute process multithreaded */
+void host_process_multithreaded() {
+
+    FILE *fptr = file_handler();                    /* Create file and open for saving */
+
+    Datastorage datastorage;
+    initializeDatastorage(&datastorage);             /* Initialize datastorage struct */
+
+    receive_node_zero_data(fptr, &datastorage);     /* Write node 0 first */
+
+    receive_compute_node_data(fptr, &datastorage);  /* Write other compute nodes */
+
+    receive_node_zero_connections(&datastorage);    /* Receive connection data from node zero */
+
+    receive_compute_node_connections(&datastorage); /* Receive connection data from other compute nodes */
+
+    combine_boundary_droplets(fptr, &datastorage);  /* Combine droplets on boundaries */
+
+    fclose(fptr);
+}

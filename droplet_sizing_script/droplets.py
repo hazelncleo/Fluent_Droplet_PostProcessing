@@ -5,10 +5,21 @@ import seaborn as sns
 import glob
 import os
 
-if True:
+if False:
+    df1 = pd.read_csv('droplet_sizing_script/1.csv')
+    df2 = pd.read_csv('droplet_sizing_script/14.csv')
 
-    df1 = pd.read_csv('droplet_sizing_script/correct.csv')
-    df2 = pd.read_csv('droplet_sizing_script/droplets_3378.csv')
+    df1.drop(columns=['droplet_id','volume','mass','vx','vy','vz'], inplace=True)
+    df2.drop(columns=['droplet_id','volume','mass','vx','vy','vz'], inplace=True)
+
+    df1.to_csv('coords_1.csv',header=False,index=False)
+    df2.to_csv('coords_14.csv',header=False,index=False)
+
+
+elif True:
+
+    df1 = pd.read_csv('droplet_sizing_script/droplet_data/droplets_3378.csv')
+    df2 = pd.read_csv('droplet_sizing_script/14.csv')
 
     df1=df1[df1['volume'] < 1e-15]
     df2=df2[df2['volume'] < 1e-15]
@@ -19,7 +30,6 @@ if True:
     vz1 = df1['vz']
 
     volume2 = df2['volume']*1e18
-    print(max(volume1),max(volume2))
     vx2 = df2['vx']
     vy2 = df2['vy']
     vz2 = df2['vz']

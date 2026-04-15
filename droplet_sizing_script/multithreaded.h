@@ -6,14 +6,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <time.h>
+#include "config_parameters.h"
 #include "udf.h"
 #include "stack.h"
 #include "data_storage.h"
 #include "node_host.h"
 #include "node_zero.h"
-
-#define MAX_DROPLET_COMBINES 250
-
 
 void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, Stack *cells_to_reexplore);
 

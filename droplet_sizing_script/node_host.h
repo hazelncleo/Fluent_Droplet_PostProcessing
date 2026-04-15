@@ -5,6 +5,7 @@
 #define _CRT_NONSTDC_NO_WARNINGS
 #include <stdio.h>
 #include <stdbool.h>
+#include "config_parameters.h"
 #include "udf.h"
 #include "data_storage.h"
 

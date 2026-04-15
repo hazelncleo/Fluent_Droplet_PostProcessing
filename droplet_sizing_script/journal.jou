@@ -1,8 +1,11 @@
-;fluent 3ddp -i journal.jou -gu -t1 -driver null
+;fluent 3ddp -i journal.jou -gu -tn -driver null
 
 /file/set-batch-options yes yes no
 /mesh/adapt/set/method/hanging-node
 /file/convert-hanging-nodes-during-read?/no
+
+/define/user-defined/use-built-in-compiler? yes
+/define/user-defined/compiled-functions compile vof_droplet_sizing yes "vof_droplet_sizing.c" "" "vof_droplet_sizing.h" ""
 
 /rc "data/data_1.cas.h5"
 /rd "data/data_1.dat.h5"
@@ -11,18 +14,13 @@
 /file/convert-hanging-nodes-during-read?/no
 
 ;add udm
-/define/user-defined/user-defined-memory 2
-
-;hook udf
-/define/user-defined/compiled-functions unload libudf
-/define/user-defined/use-built-in-compiler? yes
-/define/user-defined/compiled-functions compile libudf yes "multithreaded.c" "stack.c" "data_storage.c" "node_host.c" "node_zero.c" "" "data_storage.h" "stack.h" "multithreaded.h" "node_zero.h" "node_host.h" ""
+/define/user-defined/user-defined-memory 1
 
 ;compile udf
-/define/user-defined/compiled-functions load libudf
+/define/user-defined/compiled-functions load vof_droplet_sizing
 
 ;run on-demand
-/define/user-defined/execute-on-demand "calculate_droplet_sizes::libudf"
+/define/user-defined/execute-on-demand "droplet_sizes_ondemand::vof_droplet_sizing"
 
 exit yes
 /exit yes

@@ -6,9 +6,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include "udf.h"
-
-#define MAX_STACK_SIZE 1000000
-#define MAX_N_GAPS 1000
+#include "config_parameters.h"
 
 // Define a structure for the stack
 typedef struct {

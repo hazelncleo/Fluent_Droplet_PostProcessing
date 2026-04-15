@@ -3,8 +3,9 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_NONSTDC_NO_WARNINGS
-#include "udf.h"
 #include <stdbool.h>
+#include "udf.h"
+#include "config_parameters.h"
 
 void node_zero_send_data();
 

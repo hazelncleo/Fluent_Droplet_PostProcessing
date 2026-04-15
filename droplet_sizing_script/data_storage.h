@@ -3,12 +3,10 @@
 
 #define _CRT_SECURE_NO_WARNINGS
 #define _CRT_NONSTDC_NO_WARNINGS
-#include "udf.h"
 #include <stdio.h>
 #include <stdbool.h>
-
-#define SECONDARY_DENSITY 997. // water density kg/m^3
-#define MAX_COMBINE_DROPLETS 2000
+#include "udf.h"
+#include "config_parameters.h"
 
 typedef struct {
     int droplet_ids[MAX_COMBINE_DROPLETS];
@@ -19,8 +17,6 @@ typedef struct {
 } Datastorage;
 
 void initializeDatastorage(Datastorage *datastorage);
-
-bool isComplete(Datastorage *datastorage);
 
 void addValues(Datastorage *datastorage, real *droplet_values, int droplet_id);
 

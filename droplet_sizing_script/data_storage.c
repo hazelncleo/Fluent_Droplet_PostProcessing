@@ -11,15 +11,6 @@ void initializeDatastorage(Datastorage *datastorage){
 }
 
 
-bool isComplete(Datastorage *datastorage){
-    if (datastorage->n_to_combine == 0) {
-        return true;
-    } else {
-        return false;
-    }
-}
-
-
 void addValues(Datastorage *datastorage, real *droplet_values, int droplet_id){
 
     for (int i = 0; i < 8; i++){
