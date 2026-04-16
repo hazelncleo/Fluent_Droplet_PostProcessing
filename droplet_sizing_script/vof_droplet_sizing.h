@@ -64,7 +64,7 @@ void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thr
 
 void assemble_droplets(Stack *cells_to_reexplore);
 
-bool droplet_in_array(int *attached_droplets, int n_droplets, int new_droplet_id);
+int droplet_in_array(int *attached_droplets, int n_droplets, int new_droplet_id);
 
 void send_droplet_message(int message, int *attached_droplets, int receiving_node);
 

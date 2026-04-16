@@ -1,5 +1,6 @@
 ;fluent 3ddp -i journal.jou -gu -tn -driver null
 
+
 /file/set-batch-options yes yes no
 /mesh/adapt/set/method/hanging-node
 /file/convert-hanging-nodes-during-read?/no
