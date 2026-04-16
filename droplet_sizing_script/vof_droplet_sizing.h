@@ -98,7 +98,7 @@ void addValues(Datastorage *datastorage, real *droplet_values, int droplet_id);
 
 int getIndex(Datastorage *datastorage, int droplet_id);
 
-int checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets);
+void checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets, int *reassign_combinations);
 
 void assignDroplets(Datastorage *datastorage, int n_to_assign, int *droplets);
 

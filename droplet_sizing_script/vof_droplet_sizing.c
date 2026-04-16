@@ -457,7 +457,7 @@ void assemble_droplets(Stack *cells_to_reexplore) {
 
     cell_t cell;
 
-    int current_droplet_id, *attached_droplets, n_droplets, new_droplet_id, message, receiving_node;
+    int *attached_droplets, n_droplets, new_droplet_id, message, receiving_node;
     n_droplets = -1;
     message = -1;
     attached_droplets = (int*)calloc(MAX_COMBINE_DROPLETS, sizeof(int));
@@ -666,37 +666,66 @@ int getIndex(Datastorage *datastorage, int droplet_id) {
  *  If they have then return that id
  *  otherwise return an unassigned id
  */
-int checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets) {
+void checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets, int *reassign_combinations) {
 
-    int index, combination_id;
-    combination_id = datastorage->n_to_combine + 1; /* Set to unassigned id */
+    int index;
+
+    reassign_combinations[0] = 0;
+    reassign_combinations[1] = datastorage->n_to_combine + 1; /* Set to unassigned id */
 
     for (int current_droplet = 0; current_droplet < n_to_assign; ++current_droplet) {
 
         index = getIndex(datastorage, droplets[current_droplet]); /* Get index of current droplet in datastorage */
 
         /* If droplet is assigned and its id is less than the current id reassign it */
-        if (datastorage->combination_ids[index] > 0 && datastorage->combination_ids[index] < combination_id) {
-            combination_id = datastorage->combination_ids[index];
+        if (datastorage->combination_ids[index] > 0) {
+            if (reassign_combinations[1] == datastorage->n_to_combine + 1) {
+
+                /* If first connected id then reduce */
+                reassign_combinations[1] = datastorage->combination_ids[index];
+
+            } else if (datastorage->combination_ids[index] < reassign_combinations[1]) {
+
+                /* Add previous combination id to list of ids to reduce */
+                reassign_combinations[2 + reassign_combinations[0]] = reassign_combinations[1];
+                reassign_combinations[1] = datastorage->combination_ids[index];
+                reassign_combinations[0]++;
+
+            } else if (datastorage->combination_ids[index] > reassign_combinations[1]) {
+
+                /* Add found combination id to list of ids to reduce */
+                reassign_combinations[2 + reassign_combinations[0]] = datastorage->combination_ids[index];
+                reassign_combinations[0]++;
+
+            }
         }
     }
 
     /* If droplet is not attached to any current droplets increment number of combined droplets */
-    if (combination_id == datastorage->n_to_combine + 1) {
+    if (reassign_combinations[1] == datastorage->n_to_combine + 1) {
         datastorage->n_to_combine++;
     }
-
-    return combination_id;
 }
 
 /* Assign each droplet in array a combined id */
 /* TODO MIGHT NEED TO CATCH SOME EDGE CASES */
 void assignDroplets(Datastorage *datastorage, int n_to_assign, int *droplets) {
 
-    int combination_id = checkDropletsAssigned(datastorage, n_to_assign, droplets);
+    int *reassign_combinations;
+    reassign_combinations= (int*)malloc(MAX_COMBINE_DROPLETS * sizeof(int));
+
+    checkDropletsAssigned(datastorage, n_to_assign, droplets, reassign_combinations);
 
     for (int droplet = 0; droplet < n_to_assign; ++droplet) {
-        datastorage->combination_ids[getIndex(datastorage, droplets[droplet])] = combination_id;
+        datastorage->combination_ids[getIndex(datastorage, droplets[droplet])] = reassign_combinations[1];
+    }
+
+    for (int reassign = 2; reassign < (2 + reassign_combinations[0]); ++reassign) {
+        for (int combination = 0; combination < datastorage->n_to_combine; ++combination) {
+            if (datastorage->combination_ids[combination] == reassign_combinations[reassign]) {
+                datastorage->combination_ids[combination] = reassign_combinations[1];
+            }
+        }
     }
 }
 

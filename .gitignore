@@ -13,3 +13,7 @@ test_datasets/
 *.out
 *.err
 droplet_sizing_script/libudf
+droplet_sizing_script/vof_droplet_sizing
+droplet_sizing_script/no.c
+droplet_sizing_script/no.h
+droplet_sizing_script/temp.c
