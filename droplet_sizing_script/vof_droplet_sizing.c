@@ -593,7 +593,7 @@ void addGap(Stack *stack) {
 
 
 /* Remove a gap from the top of the stack */
-int remGap(Stack *stack) {
+void remGap(Stack *stack) {
     if (isGap(stack)) {
         stack->n_gaps--;
         stack->top--;
@@ -859,7 +859,7 @@ void node_zero_send_data() {
                 PRF_CSEND_INT(node_host, &message, 1, droplet_id);
 
                 if (message == -1) {
-                    nodes_completed[current_node] = 1;    /* Node calculations completed */
+                    nodes_completed[current_node - 1] = 1;    /* Node calculations completed */
                 } else if (message >= 0) {
 
                     /* Receive values for droplet */
@@ -1089,7 +1089,7 @@ void receive_compute_node_data(FILE *fptr, Datastorage *datastorage) {
 /* Receive node zero droplet connection data */
 void receive_node_zero_connections(Datastorage *datastorage) {
 
-    int message;
+    int message, *droplet_ids;
 
     while (1) {
 
@@ -1104,7 +1104,7 @@ void receive_node_zero_connections(Datastorage *datastorage) {
         } else {
 
             /* Received node connections and assign droplets */
-            int *droplet_ids = (int*)malloc(message * sizeof(int));
+            droplet_ids = (int*)malloc(message * sizeof(int));
             PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
             assignDroplets(datastorage, message, droplet_ids);
 
@@ -1115,29 +1115,35 @@ void receive_node_zero_connections(Datastorage *datastorage) {
 
 /* Receive other compute nodes droplet connection data through node zero (excluding node zero) */
 void receive_compute_node_connections(Datastorage *datastorage) {
-    int message;
-    int *nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
-    int all_nodes_completed = 0;
+
+    int message, all_nodes_completed, *nodes_completed, *droplet_ids;
+    all_nodes_completed = 0;
+    nodes_completed = (int*)calloc((compute_node_count - 1), sizeof(int));
 
     while (!all_nodes_completed) {
 
         all_nodes_completed = 1;
 
-        for (int current_node = 1; current_node < compute_node_count; current_node++) {
+        for (int current_node = 1; current_node < compute_node_count; ++current_node) {
             if (nodes_completed[current_node - 1] == 0) {
 
-                // Receive message from node zero
-                // -1 = no more messages
-                // >0 = size of array to receive
+                /*
+                 * Receive message from node zero
+                 * -1 = no more messages
+                 * >0 = size of array to receive
+                 */
                 PRF_CRECV_INT(node_zero, &message, 1, node_zero);
 
                 if (message == -1) {
-                    nodes_completed[current_node-1] = 1; // current node has no more messages to send
+                    nodes_completed[current_node - 1] = 1; /* current node has no more messages to send */
                 } else {
-                    int *droplet_ids = (int*)malloc(message * sizeof(int));
+
+                    /* Allocate an array and assign the droplets to be combined */
+                    droplet_ids = (int*)malloc(message * sizeof(int));
                     PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
                     assignDroplets(datastorage, message, droplet_ids);
                     all_nodes_completed = 0;
+
                 }
             }
         }

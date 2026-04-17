@@ -84,7 +84,7 @@ void push(Stack *stack, cell_t cell);
 
 void addGap(Stack *stack);
 
-int remGap(Stack *stack);
+void remGap(Stack *stack);
 
 cell_t pop(Stack *stack);
 

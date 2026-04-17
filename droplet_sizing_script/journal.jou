@@ -21,7 +21,8 @@
 /define/user-defined/compiled-functions load vof_droplet_sizing
 
 ;run on-demand
-/define/user-defined/execute-on-demand "droplet_sizes_ondemand::vof_droplet_sizing"
+;/define/user-defined/execute-on-demand "droplet_sizes_ondemand::vof_droplet_sizing"
+/define/user-defined/execute-on-demand "n_cell_threads::vof_droplet_sizing"
 
 exit yes
 /exit yes
