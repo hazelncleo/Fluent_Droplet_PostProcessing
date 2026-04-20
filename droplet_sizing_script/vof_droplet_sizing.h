@@ -8,11 +8,12 @@
 #include <time.h>
 #include "udf.h"
 
-#define SECONDARY_DENSITY 997. // kg/m^3
+#define SECONDARY_DENSITY 997. /* kg/m^3 */
 #define MAX_COMBINE_DROPLETS 2000
 #define MAX_STACK_SIZE 1000000
 #define MAX_N_GAPS 1000
-#define DROPLET_PHASE 1 // 0 = primary, 1 = secondary, and so on...
+#define DROPLET_PHASE 1 /* 0 = primary, 1 = secondary, and so on... */
+#define PRINT_SIMDATA 1
 
 #define NUM_UDM 1
 static int udm_offset = UDM_UNRESERVED;
@@ -28,7 +29,7 @@ typedef struct {
     int top;
     int gaps[MAX_N_GAPS];
     int n_gaps;
-} Stack;
+} stack;
 
 
 typedef struct {
@@ -37,7 +38,7 @@ typedef struct {
     int n_droplets;
     int n_to_combine;
     real droplet_values[MAX_COMBINE_DROPLETS][8];
-} Datastorage;
+} datastorage;
 
 
 /*
@@ -49,7 +50,7 @@ void multithreaded_calculation();
 void singlethreaded_calculation();
 
 /*
- *   Compute node functions TODO
+ *   Compute node functions
  */
 
 void init_udm();
@@ -58,11 +59,11 @@ void compute_droplet_data_singlethreaded();
 
 void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id);
 
-void compute_droplet_data(Stack *cells_to_reexplore);
+void compute_droplet_data(stack *cells_to_reexplore);
 
-void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, Stack *cells_to_reexplore);
+void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, stack *cells_to_reexplore);
 
-void assemble_droplets(Stack *cells_to_reexplore);
+void assemble_droplets(stack *cells_to_reexplore);
 
 int droplet_in_array(int *attached_droplets, int n_droplets, int new_droplet_id);
 
@@ -72,37 +73,37 @@ void send_droplet_message(int message, int *attached_droplets, int receiving_nod
  *   Stack functions
  */
 
-void initialize_stack(Stack *stack);
+void initialize_stack(stack *stack_obj);
 
-int stack_is_empty(Stack *stack);
+int stack_is_empty(stack *stack_obj);
 
-int stack_is_full(Stack *stack);
+int stack_is_full(stack *stack_obj);
 
-int stack_is_gap(Stack *stack);
+int stack_is_gap(stack *stack_obj);
 
-void push_to_stack(Stack *stack, cell_t cell);
+void push_to_stack(stack *stack_obj, cell_t cell);
 
-void add_gap_to_stack(Stack *stack);
+void add_gap_to_stack(stack *stack_obj);
 
-void rem_gap_from_stack(Stack *stack);
+void rem_gap_from_stack(stack *stack_obj);
 
-cell_t pop_from_stack(Stack *stack);
+cell_t pop_from_stack(stack *stack_obj);
 
 /*
  *   Data storage functions
  */
 
-void initialize_datastorage(Datastorage *datastorage);
+void initialize_datastorage(datastorage *droplets_datastorage);
 
-void add_droplet_values_to_datastorage(Datastorage *datastorage, real *droplet_values, int droplet_id);
+void add_droplet_values_to_datastorage(datastorage *droplets_datastorage, real *droplet_values, int droplet_id);
 
-int get_droplet_index_from_datastorage(Datastorage *datastorage, int droplet_id);
+int get_droplet_index_from_datastorage(datastorage *droplets_datastorage, int droplet_id);
 
-void check_droplets_already_assigned(Datastorage *datastorage, int n_to_assign, int *droplets, int *reassign_combinations);
+void check_droplets_already_assigned(datastorage *droplets_datastorage, int n_to_assign, int *droplets, int *reassign_combinations);
 
-void assign_droplets_to_combine(Datastorage *datastorage, int n_to_assign, int *droplets);
+void assign_droplets_to_combine(datastorage *droplets_datastorage, int n_to_assign, int *droplets);
 
-int get_values_from_datastorage(Datastorage *datastorage, real *droplet_values, int combination_id);
+int get_values_from_datastorage(datastorage *droplets_datastorage, real *droplet_values, int combination_id);
 
 void add_vectors(real *droplet_values, real *values_to_add);
 
@@ -130,15 +131,15 @@ void save_line_to_file(FILE *fptr, real *droplet_values, int droplet_id);
 
 void receive_node_data_singlethreaded(FILE *fptr);
 
-void receive_node_zero_data(FILE *fptr, Datastorage *datastorage);
+void receive_node_zero_data(FILE *fptr, datastorage *droplets_datastorage);
 
-void receive_compute_node_data(FILE *fptr, Datastorage *datastorage);
+void receive_compute_node_data(FILE *fptr, datastorage *droplets_datastorage);
 
-void receive_node_zero_connections(Datastorage *datastorage);
+void receive_node_zero_connections(datastorage *droplets_datastorage);
 
-void receive_compute_node_connections(Datastorage *datastorage);
+void receive_compute_node_connections(datastorage *droplets_datastorage);
 
-void combine_boundary_droplets(FILE *fptr, Datastorage *datastorage);
+void combine_boundary_droplets(FILE *fptr, datastorage *droplets_datastorage);
 
 void host_process_singlethreaded();
 

@@ -1,9 +1,3 @@
-import warnings
-
-with warnings.catch_warnings():
-    warnings.simplefilter('ignore')
-    #import ansys.fluent.core as pyfluent
-    warnings.simplefilter("default")
 
 class DropletSizingScriptController:
     def __init__(self, parameters, folder):
@@ -13,7 +7,7 @@ class DropletSizingScriptController:
     def droplet_sizing_calculation(self, plot_results = False, animate_results = False): # TODO
         '''
         Docstring for droplet_sizing
-        
+
         :param self: Description
         '''
         self.droplets_calculated = True

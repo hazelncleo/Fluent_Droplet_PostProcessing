@@ -55,7 +55,7 @@ void multithreaded_calculation() {
 
     #if !RP_HOST
 
-        Stack cells_to_reexplore;
+        stack cells_to_reexplore;
         initialize_stack(&cells_to_reexplore);
 
         init_udm();
@@ -201,8 +201,8 @@ void compute_droplet_data_singlethreaded() {
 /* Performs floodfill on a droplet, for singlethreaded analysis */
 void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id) {
 
-    Stack stack;
-    initialize_stack(&stack);
+    stack candidates_stack;
+    initialize_stack(&candidates_stack);
 
     Thread *cell_face_thread;
 
@@ -221,15 +221,15 @@ void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Th
     /* Set the droplet id of the first cell and push it to the stack */
     C_UDMI(first_cell, cell_thread, udm_offset) = droplet_id;
 
-    push_to_stack(&stack, first_cell);
+    push_to_stack(&candidates_stack, first_cell);
 
     first_value_update(droplet_values, vof, first_cell, cell_thread);
 
     /* Perform floodfill until the stack is empty */
-    while (!stack_is_empty(&stack)) {
+    while (!stack_is_empty(&candidates_stack)) {
 
         /* Get next cell on the stack */
-        current_cell = pop_from_stack(&stack);
+        current_cell = pop_from_stack(&candidates_stack);
 
         /* Loop over faces of current cell */
         c_face_loop(current_cell, cell_thread, local_face_id) {
@@ -256,7 +256,7 @@ void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Th
                 if (cell_explored == 0 && vof > 0.5) {
 
                     /* Push cell to the stack, set its droplet id and add values to the droplet */
-                    push_to_stack(&stack, adjacent_cell);
+                    push_to_stack(&candidates_stack, adjacent_cell);
                     C_UDMI(adjacent_cell, cell_thread, udm_offset) = droplet_id;
                     subsequent_value_update(droplet_values, vof, adjacent_cell, cell_thread);
 
@@ -279,7 +279,7 @@ void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Th
 
 
 /* Calculate droplet sizes, positions and velocities, for multithreaded analysis */
-void compute_droplet_data(Stack *cells_to_reexplore) {
+void compute_droplet_data(stack *cells_to_reexplore) {
 
     Domain *mixture_domain = Get_Domain(1);
 
@@ -328,10 +328,10 @@ void compute_droplet_data(Stack *cells_to_reexplore) {
 
 
 /* Performs floodfill on a droplet, for multithreaded analysis */
-void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id, Stack *cells_to_reexplore) {
+void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id, stack *cells_to_reexplore) {
 
-    Stack stack;
-    initialize_stack(&stack);
+    stack candidates_stack;
+    initialize_stack(&candidates_stack);
 
     Thread *cell_face_thread;
 
@@ -350,15 +350,15 @@ void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thr
 
     /* Set the droplet id of the first cell and push it to the stack */
     C_UDMI(first_cell, cell_thread, udm_offset) = droplet_id;
-    push_to_stack(&stack, first_cell);
+    push_to_stack(&candidates_stack, first_cell);
 
     first_value_update(droplet_values, vof, first_cell, cell_thread);
 
     /* Perform floodfill until the stack is empty */
-    while (!stack_is_empty(&stack)) {
+    while (!stack_is_empty(&candidates_stack)) {
 
         /* Get next cell on the stack */
-        current_cell = pop_from_stack(&stack);
+        current_cell = pop_from_stack(&candidates_stack);
 
         /* Loop over faces of current cell */
         c_face_loop(current_cell, cell_thread, local_face_id) {
@@ -396,7 +396,7 @@ void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thr
                     } else {
 
                         /* Push cell to the stack, set its droplet id and add values to the droplet */
-                        push_to_stack(&stack, adjacent_cell);
+                        push_to_stack(&candidates_stack, adjacent_cell);
                         C_UDMI(adjacent_cell, cell_thread, udm_offset) = droplet_id;
                         subsequent_value_update(droplet_values, vof, adjacent_cell, cell_thread);
                     }
@@ -436,7 +436,7 @@ void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thr
 
 
 /* Find droplet ids of cells connected to boundary droplets */
-void assemble_droplets(Stack *cells_to_reexplore) {
+void assemble_droplets(stack *cells_to_reexplore) {
 
     Domain *mixture_domain = Get_Domain(1);
 
@@ -529,15 +529,15 @@ void send_droplet_message(int array_size, int *attached_droplets, int receiving_
 
 
 /* Initialize the stack */
-void initialize_stack(Stack *stack) {
-    stack->top = -1;
-    stack->n_gaps = 0;
+void initialize_stack(stack *stack_obj) {
+    stack_obj->top = -1;
+    stack_obj->n_gaps = 0;
 }
 
 
 /* Check if the stack is empty */
-int stack_is_empty(Stack *stack) {
-    if (stack->top == -1) {
+int stack_is_empty(stack *stack_obj) {
+    if (stack_obj->top == -1) {
         return 1;
     } else {
         return 0;
@@ -546,8 +546,8 @@ int stack_is_empty(Stack *stack) {
 
 
 /* Check if the stack is full */
-int stack_is_full(Stack *stack) {
-    if (stack->top >= MAX_STACK_SIZE - 1) {
+int stack_is_full(stack *stack_obj) {
+    if (stack_obj->top >= MAX_STACK_SIZE - 1) {
         return 1;
     } else {
         return 0;
@@ -556,8 +556,8 @@ int stack_is_full(Stack *stack) {
 
 
 /* Check if a gap is on top of the stack */
-int stack_is_gap(Stack *stack) {
-    if (stack->n_gaps > 0 && stack->gaps[stack->n_gaps-1] == stack->top) {
+int stack_is_gap(stack *stack_obj) {
+    if (stack_obj->n_gaps > 0 && stack_obj->gaps[stack_obj->n_gaps-1] == stack_obj->top) {
         return 1;
     } else {
         return 0;
@@ -566,25 +566,25 @@ int stack_is_gap(Stack *stack) {
 
 
 /* Push a cell onto the stack */
-void push_to_stack(Stack *stack, cell_t cell) {
-    if (stack_is_full(stack)) {
+void push_to_stack(stack *stack_obj, cell_t cell) {
+    if (stack_is_full(stack_obj)) {
         Error("The stack on Node %d is full\n", myid);
     }
-    stack->arr[++stack->top] = cell;
+    stack_obj->arr[++stack_obj->top] = cell;
 }
 
 
 /* Add a gap onto the stack to seperate values */
-void add_gap_to_stack(Stack *stack) {
-    stack->gaps[stack->n_gaps++] = ++stack->top;
+void add_gap_to_stack(stack *stack_obj) {
+    stack_obj->gaps[stack_obj->n_gaps++] = ++stack_obj->top;
 }
 
 
 /* Remove a gap from the top of the stack */
-void rem_gap_from_stack(Stack *stack) {
-    if (stack_is_gap(stack)) {
-        stack->n_gaps--;
-        stack->top--;
+void rem_gap_from_stack(stack *stack_obj) {
+    if (stack_is_gap(stack_obj)) {
+        stack_obj->n_gaps--;
+        stack_obj->top--;
     } else {
         Error("Tried to remove gap from stack on node %d, but top is not a gap\n", myid);
     }
@@ -592,18 +592,18 @@ void rem_gap_from_stack(Stack *stack) {
 
 
 /* Pop the top value off the stack */
-cell_t pop_from_stack(Stack *stack) {
+cell_t pop_from_stack(stack *stack_obj) {
 
     cell_t popped;
 
-    if (stack_is_empty(stack)) {
+    if (stack_is_empty(stack_obj)) {
         Error("Tried to pop value off an empty stack on node %d\n", myid);
-    } else if (stack_is_gap(stack)) {
+    } else if (stack_is_gap(stack_obj)) {
         Error("Tried to pop value off stack, but was a gap on node %d\n", myid);
     }
 
-    popped = stack->arr[stack->top];
-    stack->top--;
+    popped = stack_obj->arr[stack_obj->top];
+    stack_obj->top--;
     return popped;
 }
 
@@ -614,33 +614,33 @@ cell_t pop_from_stack(Stack *stack) {
 
 
 /* Initialize the data storage values to 0 */
-void initialize_datastorage(Datastorage *datastorage) {
+void initialize_datastorage(datastorage *droplets_datastorage) {
 
-    datastorage->n_droplets = 0;                                                    /* Total number of droplet values that have been saved */
-    datastorage->n_to_combine = 0;                                                  /* Total number of droplets after combining */
-    memset(datastorage->combination_ids, 0, MAX_COMBINE_DROPLETS * sizeof(int));    /* Array of temporary IDs to help with combining */
+    droplets_datastorage->n_droplets = 0;                                                    /* Total number of droplet values that have been saved */
+    droplets_datastorage->n_to_combine = 0;                                                  /* Total number of droplets after combining */
+    memset(droplets_datastorage->combination_ids, 0, MAX_COMBINE_DROPLETS * sizeof(int));    /* Array of temporary IDs to help with combining */
 }
 
 
 /* Add a droplets values and ID to the storage object */
-void add_droplet_values_to_datastorage(Datastorage *datastorage, real *droplet_values, int droplet_id) {
+void add_droplet_values_to_datastorage(datastorage *droplets_datastorage, real *droplet_values, int droplet_id) {
 
     /* Save droplet values */
     for (int droplet_value = 0; droplet_value < 8; ++droplet_value) {
-        datastorage->droplet_values[datastorage->n_droplets][droplet_value] = droplet_values[droplet_value];
+        droplets_datastorage->droplet_values[droplets_datastorage->n_droplets][droplet_value] = droplet_values[droplet_value];
     }
 
     /* Save droplet id & Increment number of droplets saved */
-    datastorage->droplet_ids[datastorage->n_droplets] = droplet_id;
-    datastorage->n_droplets++;
+    droplets_datastorage->droplet_ids[droplets_datastorage->n_droplets] = droplet_id;
+    droplets_datastorage->n_droplets++;
 }
 
 
 /* Get the index of a given droplet id */
-int get_droplet_index_from_datastorage(Datastorage *datastorage, int droplet_id) {
+int get_droplet_index_from_datastorage(datastorage *droplets_datastorage, int droplet_id) {
 
-    for (int index = 0; index < datastorage->n_droplets; ++index) {
-        if (datastorage->droplet_ids[index] == droplet_id) {
+    for (int index = 0; index < droplets_datastorage->n_droplets; ++index) {
+        if (droplets_datastorage->droplet_ids[index] == droplet_id) {
             return index;
         }
     }
@@ -654,35 +654,35 @@ int get_droplet_index_from_datastorage(Datastorage *datastorage, int droplet_id)
  *  If they have then return that id
  *  otherwise return an unassigned id
  */
-void check_droplets_already_assigned(Datastorage *datastorage, int n_to_assign, int *droplets, int *reassign_combinations) {
+void check_droplets_already_assigned(datastorage *droplets_datastorage, int n_to_assign, int *droplets, int *reassign_combinations) {
 
     int index;
 
     reassign_combinations[0] = 0;
-    reassign_combinations[1] = datastorage->n_to_combine + 1; /* Set to unassigned id */
+    reassign_combinations[1] = droplets_datastorage->n_to_combine + 1; /* Set to unassigned id */
 
     for (int current_droplet = 0; current_droplet < n_to_assign; ++current_droplet) {
 
-        index = get_droplet_index_from_datastorage(datastorage, droplets[current_droplet]); /* Get index of current droplet in datastorage */
+        index = get_droplet_index_from_datastorage(droplets_datastorage, droplets[current_droplet]); /* Get index of current droplet in datastorage */
 
         /* If droplet is assigned and its id is less than the current id reassign it */
-        if (datastorage->combination_ids[index] > 0) {
-            if (reassign_combinations[1] == datastorage->n_to_combine + 1) {
+        if (droplets_datastorage->combination_ids[index] > 0) {
+            if (reassign_combinations[1] == droplets_datastorage->n_to_combine + 1) {
 
                 /* If first connected id then reduce */
-                reassign_combinations[1] = datastorage->combination_ids[index];
+                reassign_combinations[1] = droplets_datastorage->combination_ids[index];
 
-            } else if (datastorage->combination_ids[index] < reassign_combinations[1]) {
+            } else if (droplets_datastorage->combination_ids[index] < reassign_combinations[1]) {
 
                 /* Add previous combination id to list of ids to reduce */
                 reassign_combinations[2 + reassign_combinations[0]] = reassign_combinations[1];
-                reassign_combinations[1] = datastorage->combination_ids[index];
+                reassign_combinations[1] = droplets_datastorage->combination_ids[index];
                 reassign_combinations[0]++;
 
-            } else if (datastorage->combination_ids[index] > reassign_combinations[1]) {
+            } else if (droplets_datastorage->combination_ids[index] > reassign_combinations[1]) {
 
                 /* Add found combination id to list of ids to reduce */
-                reassign_combinations[2 + reassign_combinations[0]] = datastorage->combination_ids[index];
+                reassign_combinations[2 + reassign_combinations[0]] = droplets_datastorage->combination_ids[index];
                 reassign_combinations[0]++;
 
             }
@@ -690,28 +690,28 @@ void check_droplets_already_assigned(Datastorage *datastorage, int n_to_assign, 
     }
 
     /* If droplet is not attached to any current droplets increment number of combined droplets */
-    if (reassign_combinations[1] == datastorage->n_to_combine + 1) {
-        datastorage->n_to_combine++;
+    if (reassign_combinations[1] == droplets_datastorage->n_to_combine + 1) {
+        droplets_datastorage->n_to_combine++;
     }
 }
 
 /* Assign each droplet in array a combined id */
 /* TODO MIGHT NEED TO CATCH SOME EDGE CASES */
-void assign_droplets_to_combine(Datastorage *datastorage, int n_to_assign, int *droplets) {
+void assign_droplets_to_combine(datastorage *droplets_datastorage, int n_to_assign, int *droplets) {
 
     int *reassign_combinations;
     reassign_combinations= (int*)malloc(MAX_COMBINE_DROPLETS * sizeof(int));
 
-    check_droplets_already_assigned(datastorage, n_to_assign, droplets, reassign_combinations);
+    check_droplets_already_assigned(droplets_datastorage, n_to_assign, droplets, reassign_combinations);
 
     for (int droplet = 0; droplet < n_to_assign; ++droplet) {
-        datastorage->combination_ids[get_droplet_index_from_datastorage(datastorage, droplets[droplet])] = reassign_combinations[1];
+        droplets_datastorage->combination_ids[get_droplet_index_from_datastorage(droplets_datastorage, droplets[droplet])] = reassign_combinations[1];
     }
 
     for (int reassign = 2; reassign < (2 + reassign_combinations[0]); ++reassign) {
-        for (int combination = 0; combination < datastorage->n_to_combine; ++combination) {
-            if (datastorage->combination_ids[combination] == reassign_combinations[reassign]) {
-                datastorage->combination_ids[combination] = reassign_combinations[1];
+        for (int combination = 0; combination < droplets_datastorage->n_to_combine; ++combination) {
+            if (droplets_datastorage->combination_ids[combination] == reassign_combinations[reassign]) {
+                droplets_datastorage->combination_ids[combination] = reassign_combinations[1];
             }
         }
     }
@@ -719,20 +719,20 @@ void assign_droplets_to_combine(Datastorage *datastorage, int n_to_assign, int *
 
 
 /* Combine the values for a combination droplet */
-int get_values_from_datastorage(Datastorage *datastorage, real *droplet_values, int combination_id) {
+int get_values_from_datastorage(datastorage *droplets_datastorage, real *droplet_values, int combination_id) {
 
     int droplet_id = 0;
 
-    for (int current_droplet = 0; current_droplet < datastorage->n_droplets; ++current_droplet) {
+    for (int current_droplet = 0; current_droplet < droplets_datastorage->n_droplets; ++current_droplet) {
 
         /* If the droplet is part of the combination droplet add its values */
-        if (datastorage->combination_ids[current_droplet] == combination_id) {
+        if (droplets_datastorage->combination_ids[current_droplet] == combination_id) {
 
-            add_vectors(droplet_values, datastorage->droplet_values[current_droplet]);
+            add_vectors(droplet_values, droplets_datastorage->droplet_values[current_droplet]);
 
             /* Check if new id is less than current id */
-            if ((droplet_id == 0) || (datastorage->droplet_ids[current_droplet] < droplet_id)) {
-                droplet_id = datastorage->droplet_ids[current_droplet];
+            if ((droplet_id == 0) || (droplets_datastorage->droplet_ids[current_droplet] < droplet_id)) {
+                droplet_id = droplets_datastorage->droplet_ids[current_droplet];
             }
         }
     }
@@ -913,9 +913,13 @@ FILE *file_handler() {
 
     char fname[50];
 
-    int max_len = sizeof(fname), timestep = N_TIME;
-
     FILE *fptr = NULL;
+
+    int max_len, timestep, sim_id, n_cycles, x_grid_position, y_grid_position;
+    max_len = sizeof(fname);
+    timestep = N_TIME;
+
+    real vibration_amplitude, vibration_frequency, noise_amplitude, noise_frequency;
 
     /* Set filename to droplets_<timestep_number>.csv */
     if (snprintf(fname, max_len, "droplets_%d.csv", timestep) >= max_len) {
@@ -929,6 +933,61 @@ FILE *file_handler() {
     }
 
     Message("File: \"%s\" opened on host process.\n", fname);
+
+    /* Prints header to the csv file */
+    if (PRINT_SIMDATA && RP_Variable_Exists_P("user/sim_id")) {
+
+        sim_id = RP_Get_Integer("user/sim_id");
+        n_cycles = RP_Get_Integer("user/n_cycles");
+        vibration_amplitude = RP_Get_Real("user/vibration_amplitude");
+        vibration_frequency = RP_Get_Real("user/vibration_frequency");
+
+        /* 1 = simple vibration, 2 = simple vibration + noise, 3 = solid coupled */
+        if (sim_id == 1) {
+
+            fprintf(fptr, "#################################################################\n");
+            fprintf(fptr, "    Simulation type: Simple vibration, timestep: %d\n", timestep);
+            fprintf(fptr, "-----------------------------------------------------------------\n");
+            fprintf(fptr, "    Parameter Values:\n");
+            fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
+            fprintf(fptr, "        Vibration amplitude = %e\n", vibration_amplitude);
+            fprintf(fptr, "        Vibration frequency = %e\n", vibration_frequency);
+            fprintf(fptr, "#################################################################\n");
+
+        } else if (sim_id == 2) {
+
+            noise_amplitude = RP_Get_Real("user/noise_amplitude");
+            noise_frequency = RP_Get_Real("user/noise_frequency");
+
+            fprintf(fptr, "#################################################################\n");
+            fprintf(fptr, "    Simulation type: Simple vibration + noise, timestep: %d\n", timestep);
+            fprintf(fptr, "-----------------------------------------------------------------\n");
+            fprintf(fptr, "    Parameter Values:\n");
+            fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
+            fprintf(fptr, "        Vibration amplitude = %e\n", vibration_amplitude);
+            fprintf(fptr, "        Vibration frequency = %e\n", vibration_frequency);
+            fprintf(fptr, "        Noise amplitude = %e\n", noise_amplitude);
+            fprintf(fptr, "        Noise frequency = %e\n", noise_frequency);
+            fprintf(fptr, "#################################################################\n");
+
+        } else if (sim_id == 3) {
+
+            x_grid_position = RP_Get_Integer("user/x_grid_position");
+            y_grid_position = RP_Get_Integer("user/y_grid_position");
+
+            fprintf(fptr, "#################################################################\n");
+            fprintf(fptr, "    Simulation type: Solid coupled, timestep: %d\n", timestep);
+            fprintf(fptr, "-----------------------------------------------------------------\n");
+            fprintf(fptr, "    Parameter Values:\n");
+            fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
+            fprintf(fptr, "        Vibration amplitude = %e\n", vibration_amplitude);
+            fprintf(fptr, "        Vibration frequency = %e\n", vibration_frequency);
+            fprintf(fptr, "        X grid position = %d\n", x_grid_position);
+            fprintf(fptr, "        Y grid position = %d\n", y_grid_position);
+            fprintf(fptr, "#################################################################\n");
+
+        }
+    }
 
     /* droplet_id, volume of droplet, mass of droplet, x coord, y coord, z coord, u velocity, v velocity, w velocity */
     fprintf(fptr, "droplet_id,volume,mass,x,y,z,u,v,w\n");
@@ -986,7 +1045,7 @@ void receive_node_data_singlethreaded(FILE *fptr) {
 
 
 /* Receive data from node zero first pass */
-void receive_node_zero_data(FILE *fptr, Datastorage *datastorage) {
+void receive_node_zero_data(FILE *fptr, datastorage *droplets_datastorage) {
 
     int message, droplet_id = 1;
     real droplet_values[8] = {0.};
@@ -1013,7 +1072,7 @@ void receive_node_zero_data(FILE *fptr, Datastorage *datastorage) {
 
             /* Receive values for droplet & store */
             PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
-            add_droplet_values_to_datastorage(datastorage, droplet_values, droplet_id);
+            add_droplet_values_to_datastorage(droplets_datastorage, droplet_values, droplet_id);
 
         }
         droplet_id += compute_node_count;
@@ -1022,7 +1081,7 @@ void receive_node_zero_data(FILE *fptr, Datastorage *datastorage) {
 
 
 /* Receive data from each compute node through node zero (excluding node zero) */
-void receive_compute_node_data(FILE *fptr, Datastorage *datastorage) {
+void receive_compute_node_data(FILE *fptr, datastorage *droplets_datastorage) {
 
     int message = 0, droplet_id = 2, all_nodes_completed = 0;
     int* nodes_completed;
@@ -1061,7 +1120,7 @@ void receive_compute_node_data(FILE *fptr, Datastorage *datastorage) {
 
                     /* Receive values for droplet and & store */
                     PRF_CRECV_REAL(node_zero, droplet_values, 8, droplet_id);
-                    add_droplet_values_to_datastorage(datastorage, droplet_values, droplet_id);
+                    add_droplet_values_to_datastorage(droplets_datastorage, droplet_values, droplet_id);
 
                     all_nodes_completed = 0;    /* Keep looping */
 
@@ -1075,7 +1134,7 @@ void receive_compute_node_data(FILE *fptr, Datastorage *datastorage) {
 
 
 /* Receive node zero droplet connection data */
-void receive_node_zero_connections(Datastorage *datastorage) {
+void receive_node_zero_connections(datastorage *droplets_datastorage) {
 
     int message, *droplet_ids;
 
@@ -1094,7 +1153,7 @@ void receive_node_zero_connections(Datastorage *datastorage) {
             /* Received node connections and assign droplets */
             droplet_ids = (int*)malloc(message * sizeof(int));
             PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
-            assign_droplets_to_combine(datastorage, message, droplet_ids);
+            assign_droplets_to_combine(droplets_datastorage, message, droplet_ids);
 
         }
     }
@@ -1102,7 +1161,7 @@ void receive_node_zero_connections(Datastorage *datastorage) {
 
 
 /* Receive other compute nodes droplet connection data through node zero (excluding node zero) */
-void receive_compute_node_connections(Datastorage *datastorage) {
+void receive_compute_node_connections(datastorage *droplets_datastorage) {
 
     int message, all_nodes_completed, *nodes_completed, *droplet_ids;
     all_nodes_completed = 0;
@@ -1129,7 +1188,7 @@ void receive_compute_node_connections(Datastorage *datastorage) {
                     /* Allocate an array and assign the droplets to be combined */
                     droplet_ids = (int*)malloc(message * sizeof(int));
                     PRF_CRECV_INT(node_zero, droplet_ids, message, node_zero);
-                    assign_droplets_to_combine(datastorage, message, droplet_ids);
+                    assign_droplets_to_combine(droplets_datastorage, message, droplet_ids);
                     all_nodes_completed = 0;
 
                 }
@@ -1140,17 +1199,17 @@ void receive_compute_node_connections(Datastorage *datastorage) {
 
 
 /* Combine connected droplets on node boundaries */
-void combine_boundary_droplets(FILE *fptr, Datastorage *datastorage) {
+void combine_boundary_droplets(FILE *fptr, datastorage *droplets_datastorage) {
 
     int droplet_id;
 
     real droplet_values[8];
 
-    for (int combination_id = 1; combination_id < datastorage->n_to_combine; ++combination_id) {
+    for (int combination_id = 1; combination_id < droplets_datastorage->n_to_combine; ++combination_id) {
 
         memset(droplet_values, (real) 0., 8 * sizeof(real)); /* Reset values to 0 */
 
-        droplet_id = get_values_from_datastorage(datastorage, droplet_values, combination_id);
+        droplet_id = get_values_from_datastorage(droplets_datastorage, droplet_values, combination_id);
 
         if (droplet_id > 0) {
             save_line_to_file(fptr, droplet_values, droplet_id);
@@ -1175,18 +1234,18 @@ void host_process_multithreaded() {
 
     FILE *fptr = file_handler();                    /* Create file and open for saving */
 
-    Datastorage datastorage;
-    initialize_datastorage(&datastorage);             /* Initialize datastorage struct */
+    datastorage droplets_datastorage;
+    initialize_datastorage(&droplets_datastorage);             /* Initialize datastorage struct */
 
-    receive_node_zero_data(fptr, &datastorage);     /* Write node 0 first */
+    receive_node_zero_data(fptr, &droplets_datastorage);     /* Write node 0 first */
 
-    receive_compute_node_data(fptr, &datastorage);  /* Write other compute nodes */
+    receive_compute_node_data(fptr, &droplets_datastorage);  /* Write other compute nodes */
 
-    receive_node_zero_connections(&datastorage);    /* Receive connection data from node zero */
+    receive_node_zero_connections(&droplets_datastorage);    /* Receive connection data from node zero */
 
-    receive_compute_node_connections(&datastorage); /* Receive connection data from other compute nodes */
+    receive_compute_node_connections(&droplets_datastorage); /* Receive connection data from other compute nodes */
 
-    combine_boundary_droplets(fptr, &datastorage);  /* Combine droplets on boundaries */
+    combine_boundary_droplets(fptr, &droplets_datastorage);  /* Combine droplets on boundaries */
 
     fclose(fptr);
 }
