@@ -14,6 +14,7 @@
 #define MAX_N_GAPS 1000
 #define DROPLET_PHASE 1 /* 0 = primary, 1 = secondary, and so on... */
 #define PRINT_SIMDATA 1
+#define SKIP_TIMESTEP 50
 
 #define NUM_UDM 1
 static int udm_offset = UDM_UNRESERVED;
@@ -29,7 +30,7 @@ typedef struct {
     int top;
     int gaps[MAX_N_GAPS];
     int n_gaps;
-} stack;
+} cell_stack;
 
 
 typedef struct {
@@ -59,11 +60,11 @@ void compute_droplet_data_singlethreaded();
 
 void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id);
 
-void compute_droplet_data(stack *cells_to_reexplore);
+void compute_droplet_data(cell_stack *cells_to_reexplore);
 
-void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, stack *cells_to_reexplore);
+void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *water_thread, int droplet_id, cell_stack *cells_to_reexplore);
 
-void assemble_droplets(stack *cells_to_reexplore);
+void assemble_droplets(cell_stack *cells_to_reexplore);
 
 int droplet_in_array(int *attached_droplets, int n_droplets, int new_droplet_id);
 
@@ -73,21 +74,21 @@ void send_droplet_message(int message, int *attached_droplets, int receiving_nod
  *   Stack functions
  */
 
-void initialize_stack(stack *stack_obj);
+void initialize_stack(cell_stack *stack_obj);
 
-int stack_is_empty(stack *stack_obj);
+int stack_is_empty(cell_stack *stack_obj);
 
-int stack_is_full(stack *stack_obj);
+int stack_is_full(cell_stack *stack_obj);
 
-int stack_is_gap(stack *stack_obj);
+int stack_is_gap(cell_stack *stack_obj);
 
-void push_to_stack(stack *stack_obj, cell_t cell);
+void push_to_stack(cell_stack *stack_obj, cell_t cell);
 
-void add_gap_to_stack(stack *stack_obj);
+void add_gap_to_stack(cell_stack *stack_obj);
 
-void rem_gap_from_stack(stack *stack_obj);
+void rem_gap_from_stack(cell_stack *stack_obj);
 
-cell_t pop_from_stack(stack *stack_obj);
+cell_t pop_from_stack(cell_stack *stack_obj);
 
 /*
  *   Data storage functions

@@ -1,4 +1,3 @@
-
 #include "vof_droplet_sizing.h"
 
 
@@ -51,66 +50,76 @@ DEFINE_ON_DEMAND(droplet_sizes_ondemand) {
 
 void multithreaded_calculation() {
 
-    clock_t begin = clock();
+    if (N_TIME > SKIP_TIMESTEP){
 
-    #if !RP_HOST
+        clock_t begin = clock();
 
-        stack cells_to_reexplore;
-        initialize_stack(&cells_to_reexplore);
+        #if !RP_HOST
 
-        init_udm();
+            cell_stack cells_to_reexplore;
+            initialize_stack(&cells_to_reexplore);
 
-        compute_droplet_data(&cells_to_reexplore);
+            init_udm();
 
-        if I_AM_NODE_ZERO_P {
-            node_zero_send_data();
-        }
+            compute_droplet_data(&cells_to_reexplore);
 
-        assemble_droplets(&cells_to_reexplore);
+            if I_AM_NODE_ZERO_P {
+                node_zero_send_data();
+            }
 
-        if I_AM_NODE_ZERO_P {
-            node_zero_send_droplet_connections();
-        }
 
-    #endif
 
-    #if !RP_NODE
-        Message("\n");
-        host_process_multithreaded();
-    #endif
+            assemble_droplets(&cells_to_reexplore);
 
-    clock_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+            if I_AM_NODE_ZERO_P {
+                node_zero_send_droplet_connections();
+            }
 
-    #if !RP_NODE
-        Message("Completed successfully in %.3f seconds\n", time_spent);
-    #endif
+        #endif
+
+        #if !RP_NODE
+            Message("\n#################################################################\n");
+            host_process_multithreaded();
+        #endif
+
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+        #if !RP_NODE
+            Message("Completed successfully in %.3f seconds\n", time_spent);
+        #endif
+    }
 }
 
 
 void singlethreaded_calculation() {
 
-    clock_t begin = clock();
+    if (N_TIME > SKIP_TIMESTEP){
 
-    #if !RP_HOST
+        clock_t begin = clock();
 
-        init_udm();
+        #if !RP_HOST
 
-        compute_droplet_data_singlethreaded();
+            init_udm();
 
-    #endif
+            compute_droplet_data_singlethreaded();
 
-    #if !RP_NODE
-        Message("\n");
-        host_process_singlethreaded();
-    #endif
+        #endif
 
-    clock_t end = clock();
-    double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        #if !RP_NODE
+            Message("\n#################################################################\n");
+            host_process_singlethreaded();
+        #endif
 
-    #if !RP_NODE
-        Message("Completed successfully in %.3f seconds\n", time_spent);
-    #endif
+        clock_t end = clock();
+        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+
+        #if !RP_NODE
+            Message("Droplet sizing script done\n", time_spent);
+            Message("Completed successfully in %.3f seconds\n", time_spent);
+            Message("#################################################################\n");
+        #endif
+    }
 }
 
 
@@ -147,6 +156,10 @@ void init_udm() {
     } else {
         Error("UDM has not been reserved\n");
     }
+
+    PRF_GSYNC();
+
+    EXCHANGE_SVAR_MESSAGE(mixture_domain, (SV_UDM_I, SV_NULL));
 
 }
 
@@ -201,7 +214,7 @@ void compute_droplet_data_singlethreaded() {
 /* Performs floodfill on a droplet, for singlethreaded analysis */
 void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id) {
 
-    stack candidates_stack;
+    cell_stack candidates_stack;
     initialize_stack(&candidates_stack);
 
     Thread *cell_face_thread;
@@ -279,7 +292,7 @@ void found_new_droplet_singlethreaded(cell_t first_cell, Thread *cell_thread, Th
 
 
 /* Calculate droplet sizes, positions and velocities, for multithreaded analysis */
-void compute_droplet_data(stack *cells_to_reexplore) {
+void compute_droplet_data(cell_stack *cells_to_reexplore) {
 
     Domain *mixture_domain = Get_Domain(1);
 
@@ -323,14 +336,17 @@ void compute_droplet_data(stack *cells_to_reexplore) {
 
     /* Send finished computing message to receiving node & sync exterior cell UDM values */
     PRF_CSEND_INT(receiving_node, &message, 1, droplet_id);
+
+    PRF_GSYNC();
+
     EXCHANGE_SVAR_MESSAGE(mixture_domain, (SV_UDM_I, SV_NULL));
 }
 
 
 /* Performs floodfill on a droplet, for multithreaded analysis */
-void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id, stack *cells_to_reexplore) {
+void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thread, int droplet_id, cell_stack *cells_to_reexplore) {
 
-    stack candidates_stack;
+    cell_stack candidates_stack;
     initialize_stack(&candidates_stack);
 
     Thread *cell_face_thread;
@@ -436,7 +452,7 @@ void found_new_droplet(cell_t first_cell, Thread *cell_thread, Thread *phase_thr
 
 
 /* Find droplet ids of cells connected to boundary droplets */
-void assemble_droplets(stack *cells_to_reexplore) {
+void assemble_droplets(cell_stack *cells_to_reexplore) {
 
     Domain *mixture_domain = Get_Domain(1);
 
@@ -529,14 +545,14 @@ void send_droplet_message(int array_size, int *attached_droplets, int receiving_
 
 
 /* Initialize the stack */
-void initialize_stack(stack *stack_obj) {
+void initialize_stack(cell_stack *stack_obj) {
     stack_obj->top = -1;
     stack_obj->n_gaps = 0;
 }
 
 
 /* Check if the stack is empty */
-int stack_is_empty(stack *stack_obj) {
+int stack_is_empty(cell_stack *stack_obj) {
     if (stack_obj->top == -1) {
         return 1;
     } else {
@@ -546,7 +562,7 @@ int stack_is_empty(stack *stack_obj) {
 
 
 /* Check if the stack is full */
-int stack_is_full(stack *stack_obj) {
+int stack_is_full(cell_stack *stack_obj) {
     if (stack_obj->top >= MAX_STACK_SIZE - 1) {
         return 1;
     } else {
@@ -556,7 +572,7 @@ int stack_is_full(stack *stack_obj) {
 
 
 /* Check if a gap is on top of the stack */
-int stack_is_gap(stack *stack_obj) {
+int stack_is_gap(cell_stack *stack_obj) {
     if (stack_obj->n_gaps > 0 && stack_obj->gaps[stack_obj->n_gaps-1] == stack_obj->top) {
         return 1;
     } else {
@@ -566,7 +582,7 @@ int stack_is_gap(stack *stack_obj) {
 
 
 /* Push a cell onto the stack */
-void push_to_stack(stack *stack_obj, cell_t cell) {
+void push_to_stack(cell_stack *stack_obj, cell_t cell) {
     if (stack_is_full(stack_obj)) {
         Error("The stack on Node %d is full\n", myid);
     }
@@ -575,13 +591,13 @@ void push_to_stack(stack *stack_obj, cell_t cell) {
 
 
 /* Add a gap onto the stack to seperate values */
-void add_gap_to_stack(stack *stack_obj) {
+void add_gap_to_stack(cell_stack *stack_obj) {
     stack_obj->gaps[stack_obj->n_gaps++] = ++stack_obj->top;
 }
 
 
 /* Remove a gap from the top of the stack */
-void rem_gap_from_stack(stack *stack_obj) {
+void rem_gap_from_stack(cell_stack *stack_obj) {
     if (stack_is_gap(stack_obj)) {
         stack_obj->n_gaps--;
         stack_obj->top--;
@@ -592,7 +608,7 @@ void rem_gap_from_stack(stack *stack_obj) {
 
 
 /* Pop the top value off the stack */
-cell_t pop_from_stack(stack *stack_obj) {
+cell_t pop_from_stack(cell_stack *stack_obj) {
 
     cell_t popped;
 
@@ -700,7 +716,7 @@ void check_droplets_already_assigned(datastorage *droplets_datastorage, int n_to
 void assign_droplets_to_combine(datastorage *droplets_datastorage, int n_to_assign, int *droplets) {
 
     int *reassign_combinations;
-    reassign_combinations= (int*)malloc(MAX_COMBINE_DROPLETS * sizeof(int));
+    reassign_combinations = (int*)malloc(MAX_COMBINE_DROPLETS * sizeof(int));
 
     check_droplets_already_assigned(droplets_datastorage, n_to_assign, droplets, reassign_combinations);
 
@@ -911,7 +927,7 @@ void node_zero_send_droplet_connections() {
 /* Gets file name, creates file and writes header line */
 FILE *file_handler() {
 
-    char fname[50];
+    char fname[60];
 
     FILE *fptr = NULL;
 
@@ -922,7 +938,7 @@ FILE *file_handler() {
     real vibration_amplitude, vibration_frequency, noise_amplitude, noise_frequency;
 
     /* Set filename to droplets_<timestep_number>.csv */
-    if (snprintf(fname, max_len, "droplets_%d.csv", timestep) >= max_len) {
+    if (snprintf(fname, max_len, "droplets_data/droplets_%d.csv", timestep) >= max_len) {
         Error("filename is larger than allocated buffer\n");
     }
 
@@ -935,7 +951,7 @@ FILE *file_handler() {
     Message("File: \"%s\" opened on host process.\n", fname);
 
     /* Prints header to the csv file */
-    if (PRINT_SIMDATA && RP_Variable_Exists_P("user/sim_id")) {
+    if (PRINT_SIMDATA) {
 
         sim_id = RP_Get_Integer("user/sim_id");
         n_cycles = RP_Get_Integer("user/n_cycles");
