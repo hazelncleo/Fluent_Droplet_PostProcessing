@@ -72,37 +72,37 @@ void send_droplet_message(int message, int *attached_droplets, int receiving_nod
  *   Stack functions
  */
 
-void initialize(Stack *stack);
+void initialize_stack(Stack *stack);
 
-int isEmpty(Stack *stack);
+int stack_is_empty(Stack *stack);
 
-int isFull(Stack *stack);
+int stack_is_full(Stack *stack);
 
-int isGap(Stack *stack);
+int stack_is_gap(Stack *stack);
 
-void push(Stack *stack, cell_t cell);
+void push_to_stack(Stack *stack, cell_t cell);
 
-void addGap(Stack *stack);
+void add_gap_to_stack(Stack *stack);
 
-void remGap(Stack *stack);
+void rem_gap_from_stack(Stack *stack);
 
-cell_t pop(Stack *stack);
+cell_t pop_from_stack(Stack *stack);
 
 /*
  *   Data storage functions
  */
 
-void initializeDatastorage(Datastorage *datastorage);
+void initialize_datastorage(Datastorage *datastorage);
 
-void addValues(Datastorage *datastorage, real *droplet_values, int droplet_id);
+void add_droplet_values_to_datastorage(Datastorage *datastorage, real *droplet_values, int droplet_id);
 
-int getIndex(Datastorage *datastorage, int droplet_id);
+int get_droplet_index_from_datastorage(Datastorage *datastorage, int droplet_id);
 
-void checkDropletsAssigned(Datastorage *datastorage, int n_to_assign, int *droplets, int *reassign_combinations);
+void check_droplets_already_assigned(Datastorage *datastorage, int n_to_assign, int *droplets, int *reassign_combinations);
 
-void assignDroplets(Datastorage *datastorage, int n_to_assign, int *droplets);
+void assign_droplets_to_combine(Datastorage *datastorage, int n_to_assign, int *droplets);
 
-int getValues(Datastorage *datastorage, real *droplet_values, int combination_id);
+int get_values_from_datastorage(Datastorage *datastorage, real *droplet_values, int combination_id);
 
 void add_vectors(real *droplet_values, real *values_to_add);
 
