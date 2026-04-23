@@ -970,7 +970,7 @@ FILE *file_handler() {
         if (sim_id == 1) {
 
             fprintf(fptr, "#################################################################\n");
-            fprintf(fptr, "    Simulation type: Simple vibration, timestep: %d\n", timestep);
+            fprintf(fptr, "    Simulation type: Simple vibration, timestep: %d, time: %e\n", timestep, CURRENT_TIME);
             fprintf(fptr, "-----------------------------------------------------------------\n");
             fprintf(fptr, "    Parameter Values:\n");
             fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
@@ -984,7 +984,7 @@ FILE *file_handler() {
             noise_frequency = RP_Get_Real("user/noise_frequency");
 
             fprintf(fptr, "#################################################################\n");
-            fprintf(fptr, "    Simulation type: Simple vibration + noise, timestep: %d\n", timestep);
+            fprintf(fptr, "    Simulation type: Simple vibration + noise, timestep: %d, time: %e\n", timestep, CURRENT_TIME);
             fprintf(fptr, "-----------------------------------------------------------------\n");
             fprintf(fptr, "    Parameter Values:\n");
             fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
@@ -1000,7 +1000,7 @@ FILE *file_handler() {
             y_grid_position = RP_Get_Integer("user/y_grid_position");
 
             fprintf(fptr, "#################################################################\n");
-            fprintf(fptr, "    Simulation type: Solid coupled, timestep: %d\n", timestep);
+            fprintf(fptr, "    Simulation type: Solid coupled, timestep: %d, time: %e\n", timestep, CURRENT_TIME);
             fprintf(fptr, "-----------------------------------------------------------------\n");
             fprintf(fptr, "    Parameter Values:\n");
             fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
