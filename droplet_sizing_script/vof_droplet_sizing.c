@@ -52,7 +52,7 @@ void multithreaded_calculation() {
 
     if (N_TIME > SKIP_TIMESTEP){
 
-        clock_t begin = clock();
+
 
         #if !RP_HOST
 
@@ -78,15 +78,20 @@ void multithreaded_calculation() {
         #endif
 
         #if !RP_NODE
+
+            double time_spent;
+
+            clock_t begin, end;
+            begin = clock();
+
             Message("\n#################################################################\n");
             host_process_multithreaded();
-        #endif
 
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+            end = clock();
+            time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-        #if !RP_NODE
             Message("Completed successfully in %.3f seconds\n", time_spent);
+            Message("\n#################################################################\n");
         #endif
     }
 }
@@ -107,17 +112,20 @@ void singlethreaded_calculation() {
         #endif
 
         #if !RP_NODE
+
+            double time_spent;
+
+            clock_t begin, end;
+            begin = clock();
+
             Message("\n#################################################################\n");
             host_process_singlethreaded();
-        #endif
 
-        clock_t end = clock();
-        double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+            end = clock();
+            time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-        #if !RP_NODE
-            Message("Droplet sizing script done\n", time_spent);
             Message("Completed successfully in %.3f seconds\n", time_spent);
-            Message("#################################################################\n");
+            Message("\n#################################################################\n");
         #endif
     }
 }
