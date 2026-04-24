@@ -52,8 +52,6 @@ void multithreaded_calculation() {
 
     if (N_TIME > SKIP_TIMESTEP){
 
-
-
         #if !RP_HOST
 
             cell_stack cells_to_reexplore;
@@ -100,8 +98,6 @@ void multithreaded_calculation() {
 void singlethreaded_calculation() {
 
     if (N_TIME > SKIP_TIMESTEP){
-
-        clock_t begin = clock();
 
         #if !RP_HOST
 
