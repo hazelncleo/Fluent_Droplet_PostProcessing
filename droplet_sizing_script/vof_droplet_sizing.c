@@ -24,12 +24,16 @@ DEFINE_EXECUTE_ON_LOADING(on_loading, libname) {
 
 
 DEFINE_EXECUTE_AT_END(multithreaded_droplet_sizes_runtime) {
-    multithreaded_calculation();
+    if (N_TIME > SKIP_TIMESTEP) {
+        multithreaded_calculation();
+    }
 }
 
 
 DEFINE_EXECUTE_AT_END(singlethreaded_droplet_sizes_runtime) {
-    singlethreaded_calculation();
+    if (N_TIME > SKIP_TIMESTEP) {
+        singlethreaded_calculation();
+    }
 }
 
 
@@ -50,80 +54,74 @@ DEFINE_ON_DEMAND(droplet_sizes_ondemand) {
 
 void multithreaded_calculation() {
 
-    if (N_TIME > SKIP_TIMESTEP){
+    #if !RP_HOST
 
-        #if !RP_HOST
+        cell_stack cells_to_reexplore;
+        initialize_stack(&cells_to_reexplore);
 
-            cell_stack cells_to_reexplore;
-            initialize_stack(&cells_to_reexplore);
+        init_udm();
 
-            init_udm();
+        compute_droplet_data(&cells_to_reexplore);
 
-            compute_droplet_data(&cells_to_reexplore);
-
-            if I_AM_NODE_ZERO_P {
-                node_zero_send_data();
-            }
+        if I_AM_NODE_ZERO_P {
+            node_zero_send_data();
+        }
 
 
 
-            assemble_droplets(&cells_to_reexplore);
+        assemble_droplets(&cells_to_reexplore);
 
-            if I_AM_NODE_ZERO_P {
-                node_zero_send_droplet_connections();
-            }
+        if I_AM_NODE_ZERO_P {
+            node_zero_send_droplet_connections();
+        }
 
-        #endif
+    #endif
 
-        #if !RP_NODE
+    #if !RP_NODE
 
-            double time_spent;
+        double time_spent;
 
-            clock_t begin, end;
-            begin = clock();
+        clock_t begin, end;
+        begin = clock();
 
-            Message("\n#################################################################\n");
-            host_process_multithreaded();
+        Message("\n#################################################################\n");
+        host_process_multithreaded();
 
-            end = clock();
-            time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        end = clock();
+        time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-            Message("Completed successfully in %.3f seconds\n", time_spent);
-            Message("\n#################################################################\n");
-        #endif
-    }
+        Message("Completed successfully in %.3f seconds\n", time_spent);
+        Message("\n#################################################################\n");
+    #endif
 }
 
 
 void singlethreaded_calculation() {
 
-    if (N_TIME > SKIP_TIMESTEP){
+    #if !RP_HOST
 
-        #if !RP_HOST
+        init_udm();
 
-            init_udm();
+        compute_droplet_data_singlethreaded();
 
-            compute_droplet_data_singlethreaded();
+    #endif
 
-        #endif
+    #if !RP_NODE
 
-        #if !RP_NODE
+        double time_spent;
 
-            double time_spent;
+        clock_t begin, end;
+        begin = clock();
 
-            clock_t begin, end;
-            begin = clock();
+        Message("\n#################################################################\n");
+        host_process_singlethreaded();
 
-            Message("\n#################################################################\n");
-            host_process_singlethreaded();
+        end = clock();
+        time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-            end = clock();
-            time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-
-            Message("Completed successfully in %.3f seconds\n", time_spent);
-            Message("\n#################################################################\n");
-        #endif
-    }
+        Message("Completed successfully in %.3f seconds\n", time_spent);
+        Message("\n#################################################################\n");
+    #endif
 }
 
 
