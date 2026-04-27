@@ -971,7 +971,7 @@ FILE *file_handler() {
             fprintf(fptr, "    Parameter Values:\n");
             fprintf(fptr, "        Number of cycles = %d\n", n_cycles);
             fprintf(fptr, "        Vibration amplitude = %e\n", vibration_amplitude);
-            fprintf(fptr, "        Vibration frequency = %e\n", vibration_frequency);
+            fprintf(fptr, "        Vibration frequency = %e\n\n\n", vibration_frequency);
             fprintf(fptr, "#################################################################\n");
 
         } else if (sim_id == 2) {

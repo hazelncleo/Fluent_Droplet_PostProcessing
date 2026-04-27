@@ -9,7 +9,7 @@ fft/
 .venv/
 __pycache__/
 .vscode/
-test_datasets/
+test_datasets/data*
 *.out
 *.err
 droplet_sizing_script/libudf
