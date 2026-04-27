@@ -3,6 +3,7 @@ import glob
 import os
 import re
 import numpy as np
+import matplotlib.pyplot as plt
 
 def tryint(s):
     try:
@@ -22,6 +23,7 @@ class DropletSizingScriptController:
         self.parameters = parameters
         self.folder = folder
 
+
     def droplet_sizing_calculation(self, plot_results = False, animate_results = False): # TODO
         '''
         Docstring for droplet_sizing
@@ -29,22 +31,46 @@ class DropletSizingScriptController:
         :param self: Description
         '''
 
-        a = []
+        
 
-        csv_files = glob.glob(os.path.join(self.folder, 'droplets_data', '*.csv'))
+        csv_files = glob.glob(os.path.join(self.folder, '*.csv'))
         csv_files.sort(key=alphanum_key)
 
-        for droplet_file in csv_files:
+        qs = np.zeros((len(csv_files), 3))
+        
+        for i,droplet_file in enumerate(csv_files):
 
             droplet_data = pd.read_csv(droplet_file, skiprows=8)
 
-            droplet_data['diameter'] = 2 * np.power((3 / (4 * np.pi)) * 1e18 * droplet_data.volume, 1/3)
+            droplet_data['diameter'] = 2 * np.cbrt((3 / (4 * np.pi)) * 1e18 * droplet_data.volume)
 
-            no_large_diameters = droplet_data[droplet_data['diameter'] < 50]
+            no_large_diameters = droplet_data[droplet_data['diameter'] < 20]
 
-            quantiles = no_large_diameters['diameter'].quantile(q = [0.1,0.5,0.9])
+            quantiles = no_large_diameters['diameter'].quantile(q = [0.1,0.5,0.9]).values
 
-            a.append(quantiles)
+            if quantiles[0] != np.nan:
+                qs[i,0] = quantiles[0]
+
+            if quantiles[1] != np.nan:
+                qs[i,1] = quantiles[1]
+
+            if quantiles[2] != np.nan:
+                qs[i,2] = quantiles[2]
+
+        plt.plot(qs[:,0],'-k')
+        plt.plot(qs[:,1],'-r')
+        plt.plot(qs[:,2],'-g')
+        plt.savefig('test.png')
+
+        f,ax=plt.subplots(1,1)
+        ax.hist(no_large_diameters['diameter'])
+        f.savefig('hist.png')
+
+            
+
+
+
+            
 
 
 
@@ -62,5 +88,4 @@ class DropletSizingScriptController:
 
 if __name__ == '__main__':
     sizer = DropletSizingScriptController(None, 'test_datasets/droplets')
-
     sizer.droplet_sizing_calculation()
