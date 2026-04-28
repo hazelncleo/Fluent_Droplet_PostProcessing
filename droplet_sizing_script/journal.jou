@@ -1,0 +1,4 @@
+
+	/define/user-defined/compiled-functions compile vof_droplet_sizing yes "vof_droplet_sizing.c" "" "vof_droplet_sizing.h" ""
+
+	/exit yes

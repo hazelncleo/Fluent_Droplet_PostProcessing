@@ -9,9 +9,9 @@
 #include "udf.h"
 
 #define SECONDARY_DENSITY 997. /* kg/m^3 */
-#define MAX_COMBINE_DROPLETS 20000
+#define MAX_COMBINE_DROPLETS 50000
 #define MAX_STACK_SIZE 2000000
-#define MAX_N_GAPS 10000
+#define MAX_N_GAPS 20000
 #define DROPLET_PHASE 1 /* 0 = primary, 1 = secondary, and so on... */
 #define PRINT_SIMDATA 1
 #define SKIP_TIMESTEP 50
