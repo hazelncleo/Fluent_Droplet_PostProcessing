@@ -26,6 +26,16 @@ DEFINE_EXECUTE_ON_LOADING(on_loading, libname) {
 DEFINE_EXECUTE_AT_END(multithreaded_droplet_sizes_runtime) {
     if (N_TIME > SKIP_TIMESTEP) {
         multithreaded_calculation();
+    } else {
+        #if !RP_HOST
+            init_udm();
+        #endif
+
+        #if !RP_NODE
+            Message("\n#################################################################\n");
+            Message("Current time step: %d less than SKIP_TIMESTEP: %d.\n", N_TIME, SKIP_TIMESTEP);
+            Message("#################################################################\n");
+        #endif
     }
 }
 
@@ -33,6 +43,16 @@ DEFINE_EXECUTE_AT_END(multithreaded_droplet_sizes_runtime) {
 DEFINE_EXECUTE_AT_END(singlethreaded_droplet_sizes_runtime) {
     if (N_TIME > SKIP_TIMESTEP) {
         singlethreaded_calculation();
+    } else {
+        #if !RP_HOST
+            init_udm();
+        #endif
+
+        #if !RP_NODE
+            Message("\n#################################################################\n");
+            Message("Current time step: %d less than SKIP_TIMESTEP: %d.\n", N_TIME, SKIP_TIMESTEP);
+            Message("#################################################################\n");
+        #endif
     }
 }
 
@@ -90,8 +110,8 @@ void multithreaded_calculation() {
         end = clock();
         time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-        Message("Completed successfully in %.3f seconds\n", time_spent);
-        Message("\n#################################################################\n");
+        Message("Droplet sizing completed successfully in %.3f seconds\n", time_spent);
+        Message("#################################################################\n");
     #endif
 }
 
@@ -119,8 +139,8 @@ void singlethreaded_calculation() {
         end = clock();
         time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-        Message("Completed successfully in %.3f seconds\n", time_spent);
-        Message("\n#################################################################\n");
+        Message("Droplet sizing completed successfully in %.3f seconds\n", time_spent);
+        Message("#################################################################\n");
     #endif
 }
 
@@ -713,8 +733,8 @@ void check_droplets_already_assigned(datastorage *droplets_datastorage, int n_to
     }
 }
 
+
 /* Assign each droplet in array a combined id */
-/* TODO MIGHT NEED TO CATCH SOME EDGE CASES */
 void assign_droplets_to_combine(datastorage *droplets_datastorage, int n_to_assign, int *droplets) {
 
     int *reassign_combinations;
@@ -1223,7 +1243,7 @@ void combine_boundary_droplets(FILE *fptr, datastorage *droplets_datastorage) {
 
     real droplet_values[8];
 
-    for (int combination_id = 1; combination_id < droplets_datastorage->n_to_combine; ++combination_id) {
+    for (int combination_id = 1; combination_id <= droplets_datastorage->n_to_combine; ++combination_id) {
 
         memset(droplet_values, (real) 0., 8 * sizeof(real)); /* Reset values to 0 */
 
