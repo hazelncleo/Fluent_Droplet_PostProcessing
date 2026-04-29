@@ -38,6 +38,7 @@ class DropletSizingScriptController:
 
         qs = np.zeros((len(csv_files), 3))
         
+        
         for i,droplet_file in enumerate(csv_files):
 
             droplet_data = pd.read_csv(droplet_file, skiprows=8)
@@ -48,14 +49,21 @@ class DropletSizingScriptController:
 
             quantiles = no_large_diameters['diameter'].quantile(q = [0.1,0.5,0.9]).values
 
-            if quantiles[0] != np.nan:
+            if quantiles[0] == quantiles[0]:
                 qs[i,0] = quantiles[0]
 
-            if quantiles[1] != np.nan:
+            if quantiles[1] == quantiles[1]:
                 qs[i,1] = quantiles[1]
 
-            if quantiles[2] != np.nan:
+            if quantiles[2] == quantiles[2]:
                 qs[i,2] = quantiles[2]
+
+            if i == 0:
+                diam = no_large_diameters['diameter']
+                volume = no_large_diameters['volume']
+            else:
+                diam = np.hstack((diam, no_large_diameters['diameter']))
+                volume = np.hstack((volume, no_large_diameters['volume']))
 
         plt.plot(qs[:,0],'-k')
         plt.plot(qs[:,1],'-r')
@@ -63,7 +71,7 @@ class DropletSizingScriptController:
         plt.savefig('test.png')
 
         f,ax=plt.subplots(1,1)
-        ax.hist(no_large_diameters['diameter'])
+        ax.hist(diam, weights=volume)
         f.savefig('hist.png')
 
             
