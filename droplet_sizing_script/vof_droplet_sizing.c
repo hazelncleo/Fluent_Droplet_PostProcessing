@@ -24,12 +24,36 @@ DEFINE_EXECUTE_ON_LOADING(on_loading, libname) {
 
 
 DEFINE_EXECUTE_AT_END(multithreaded_droplet_sizes_runtime) {
-    multithreaded_calculation();
+    if (N_TIME > SKIP_TIMESTEP) {
+        multithreaded_calculation();
+    } else {
+        #if !RP_HOST
+            init_udm();
+        #endif
+
+        #if !RP_NODE
+            Message("\n#################################################################\n");
+            Message("Current time step: %d less than SKIP_TIMESTEP: %d.\n", N_TIME, SKIP_TIMESTEP);
+            Message("#################################################################\n");
+        #endif
+    }
 }
 
 
 DEFINE_EXECUTE_AT_END(singlethreaded_droplet_sizes_runtime) {
-    singlethreaded_calculation();
+    if (N_TIME > SKIP_TIMESTEP) {
+        singlethreaded_calculation();
+    } else {
+        #if !RP_HOST
+            init_udm();
+        #endif
+
+        #if !RP_NODE
+            Message("\n#################################################################\n");
+            Message("Current time step: %d less than SKIP_TIMESTEP: %d.\n", N_TIME, SKIP_TIMESTEP);
+            Message("#################################################################\n");
+        #endif
+    }
 }
 
 
@@ -50,80 +74,74 @@ DEFINE_ON_DEMAND(droplet_sizes_ondemand) {
 
 void multithreaded_calculation() {
 
-    if (N_TIME > SKIP_TIMESTEP){
+    #if !RP_HOST
 
-        #if !RP_HOST
+        cell_stack cells_to_reexplore;
+        initialize_stack(&cells_to_reexplore);
 
-            cell_stack cells_to_reexplore;
-            initialize_stack(&cells_to_reexplore);
+        init_udm();
 
-            init_udm();
+        compute_droplet_data(&cells_to_reexplore);
 
-            compute_droplet_data(&cells_to_reexplore);
-
-            if I_AM_NODE_ZERO_P {
-                node_zero_send_data();
-            }
+        if I_AM_NODE_ZERO_P {
+            node_zero_send_data();
+        }
 
 
 
-            assemble_droplets(&cells_to_reexplore);
+        assemble_droplets(&cells_to_reexplore);
 
-            if I_AM_NODE_ZERO_P {
-                node_zero_send_droplet_connections();
-            }
+        if I_AM_NODE_ZERO_P {
+            node_zero_send_droplet_connections();
+        }
 
-        #endif
+    #endif
 
-        #if !RP_NODE
+    #if !RP_NODE
 
-            double time_spent;
+        double time_spent;
 
-            clock_t begin, end;
-            begin = clock();
+        clock_t begin, end;
+        begin = clock();
 
-            Message("\n#################################################################\n");
-            host_process_multithreaded();
+        Message("\n#################################################################\n");
+        host_process_multithreaded();
 
-            end = clock();
-            time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
+        end = clock();
+        time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-            Message("Completed successfully in %.3f seconds\n", time_spent);
-            Message("\n#################################################################\n");
-        #endif
-    }
+        Message("Droplet sizing completed successfully in %.3f seconds\n", time_spent);
+        Message("#################################################################\n");
+    #endif
 }
 
 
 void singlethreaded_calculation() {
 
-    if (N_TIME > SKIP_TIMESTEP){
+    #if !RP_HOST
 
-        #if !RP_HOST
+        init_udm();
 
-            init_udm();
+        compute_droplet_data_singlethreaded();
 
-            compute_droplet_data_singlethreaded();
+    #endif
 
-        #endif
+    #if !RP_NODE
 
-        #if !RP_NODE
+        double time_spent;
 
-            double time_spent;
+        clock_t begin, end;
+        begin = clock();
 
-            clock_t begin, end;
-            begin = clock();
+        Message("\n#################################################################\n");
+        host_process_singlethreaded();
 
-            Message("\n#################################################################\n");
-            host_process_singlethreaded();
+        end = clock();
+        time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
 
-            end = clock();
-            time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
-
-            Message("Completed successfully in %.3f seconds\n", time_spent);
-            Message("\n#################################################################\n");
-        #endif
-    }
+        Message("Droplet sizing completed successfully in %.3f seconds\n", time_spent);
+        Message("#################################################################\n");
+    #endif
 }
 
 
@@ -715,8 +733,8 @@ void check_droplets_already_assigned(datastorage *droplets_datastorage, int n_to
     }
 }
 
+
 /* Assign each droplet in array a combined id */
-/* TODO MIGHT NEED TO CATCH SOME EDGE CASES */
 void assign_droplets_to_combine(datastorage *droplets_datastorage, int n_to_assign, int *droplets) {
 
     int *reassign_combinations;
@@ -1225,7 +1243,7 @@ void combine_boundary_droplets(FILE *fptr, datastorage *droplets_datastorage) {
 
     real droplet_values[8];
 
-    for (int combination_id = 1; combination_id < droplets_datastorage->n_to_combine; ++combination_id) {
+    for (int combination_id = 1; combination_id <= droplets_datastorage->n_to_combine; ++combination_id) {
 
         memset(droplet_values, (real) 0., 8 * sizeof(real)); /* Reset values to 0 */
 
