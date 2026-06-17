@@ -3,7 +3,7 @@ name = "fluent-droplet-postprocessing"
 description = "Postprocessor for fluent results from the PALM project using pyensight and pyfluent."
 readme = "README.md"
 version = "0.1.0"
-requires-python = "==3.13.0"
+requires-python = "==3.13.1"
 dependencies = [
     "ansys-pyensight-core>=0.11.2",
     "inquirer>=3.4.1",

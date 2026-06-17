@@ -10,12 +10,12 @@ from ensight_controller import EnsightController
 
 class ControlPostProcessor:
     '''
-    
+
     '''
     def __init__(self, parameters, folder = None, options = None):
         '''
         Docstring for __init__
-        
+
         :param self: Description
         :param parameters: Description
         '''
@@ -40,7 +40,7 @@ class ControlPostProcessor:
         RETURNS
         ---------------------------------------------------
         file_path : str
-            A string pointing to the folder the user selected. 
+            A string pointing to the folder the user selected.
         ---------------------------------------------------
         NOTE: A FileExistsError will be raised if the dialog is cancelled
         ---------------------------------------------------
@@ -54,13 +54,13 @@ class ControlPostProcessor:
         root.withdraw()
         root.lift()
         root.attributes("-topmost", True)
-        
+
         self.folder = askdirectory(title = 'Select folder to read .cas.h5 & .dat.h5 files from: ', initialdir = os.path.abspath(os.getcwd()))
         root.destroy()
 
-        if not self.folder: 
+        if not self.folder:
             raise FileExistsError(red_text('A folder was not selected.'))
-        
+
         self.folder = os.path.abspath(self.folder)
 
 
@@ -94,21 +94,21 @@ class ControlPostProcessor:
                     message  = 'Select the post-processing type for the ' + blue_text('droplet sizing') + ' script',
                     choices  = type_of_postprocessing,
                     carousel = True,
-                    ignore   = lambda x: 'Droplet sizing' not in x['options'] 
+                    ignore   = lambda x: 'Droplet sizing' not in x['options']
                 ),
                 inquirer.List(
                     name     = 'shearrate_options',
                     message  = 'Select the post-processing type for the ' + blue_text('shearrate') + ' calculations',
                     choices  = type_of_postprocessing,
                     carousel = True,
-                    ignore   = lambda x: 'Shearrate' not in x['options'] 
+                    ignore   = lambda x: 'Shearrate' not in x['options']
                 ),
                 inquirer.List(
                     name     = 'flowrate_options',
                     message  = 'Select the post-processing type for the ' + blue_text('flowrate') + ' calculations',
                     choices  = type_of_postprocessing,
                     carousel = True,
-                    ignore   = lambda x: 'Flowrate' not in x['options'] 
+                    ignore   = lambda x: 'Flowrate' not in x['options']
                 )
             ],
             theme = HazelsAwesomeTheme()
@@ -116,7 +116,7 @@ class ControlPostProcessor:
 
         if selected_answers is None:
             raise ValueError(red_text('The options selected were not valid'))
-        
+
         self.options = {choice : (choice in selected_answers['options']) for choice in postprocessing_choices}
 
         if self.options['Droplet sizing']: self.options['Droplet sizing'] = selected_answers['droplet_options']
@@ -145,15 +145,17 @@ class ControlPostProcessor:
         if not any(self.options.values()):
             print(yellow_text('No post-processing options selected, closing program.'))
             return
-        
+
         os.makedirs(os.path.join(self.folder,'output'), exist_ok = True)
 
         # run droplet sizing fluent script
         if self.options['Droplet sizing']:
             self.droplet_sizer.droplet_sizing_calculation(
-                plot_results    = ('Animate' in self.options['Droplet sizing']) or ('Plot' in self.options['Droplet sizing']),
-                animate_results = ('Animate' in self.options['Droplet sizing'])
+                plot_results    = ('Animation' in self.options['Droplet sizing']) or ('Plot' in self.options['Droplet sizing']),
+                animate_results = ('Animation' in self.options['Droplet sizing'])
             )
+
+            self.save_droplet_data_to_csv()
 
         # Only boot ensight if required
         if any([value for key, value in self.options.items() if key not in 'Droplet sizing']):
@@ -169,32 +171,56 @@ class ControlPostProcessor:
 
             if self.options['Shearrate']:
                 self.ensight_controller.shearrate_calculation(
-                    plot_results    = ('Animate' in self.options['Shearrate']) or ('Plot' in self.options['Shearrate']), 
-                    animate_results = ('Animate' in self.options['Shearrate'])
+                    plot_results    = ('Animation' in self.options['Shearrate']) or ('Plot' in self.options['Shearrate']),
+                    animate_results = ('Animation' in self.options['Shearrate'])
                 )
 
             if self.options['Flowrate']:
                 self.ensight_controller.flowrate_calculation(
-                    plot_results    = ('Animate' in self.options['Flowrate']) or ('Plot' in self.options['Flowrate']), 
-                    animate_results = ('Animate' in self.options['Flowrate'])
+                    plot_results    = ('Animation' in self.options['Flowrate']) or ('Plot' in self.options['Flowrate']),
+                    animate_results = ('Animation' in self.options['Flowrate'])
                 )
 
-        self.save_data_to_csv()
+            self.save_ensight_data_to_csv()
 
 
-    def save_data_to_csv(self):
+    def save_droplet_data_to_csv(self):
         '''
         Docstring for save_data_to_csv
-        
+
         :param self: Description
         '''
 
-        
-        fpath = os.path.join(self.folder, 'output', 'output_data.csv')
-        
+        fpath = os.path.join(self.folder, 'output', 'droplet_data.csv')
+
         if os.path.exists(fpath):
-            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'output_data.csv'))))
+            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'droplet_data.csv'))))
 
-        self.ensight_controller.results_data.to_csv(fpath)
+        self.droplet_sizer.results_data.to_csv(fpath)
 
-    
+
+    def save_ensight_data_to_csv(self):
+        '''
+        Docstring for save_data_to_csv
+
+        :param self: Description
+        '''
+
+        fpath = os.path.join(self.folder, 'output', 'ensight_data.csv')
+
+        if os.path.exists(fpath):
+            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'ensight_data.csv'))))
+
+            temp_data = pd.read_csv(fpath, index_col = 'timestep_number')
+
+            for column in self.ensight_controller.results_data:
+                if column not in temp_data:
+                    temp_data[column] = self.ensight_controller.results_data[column]
+
+            temp_data.to_csv(fpath)
+
+
+        else:
+            self.ensight_controller.results_data.to_csv(fpath)
+
+

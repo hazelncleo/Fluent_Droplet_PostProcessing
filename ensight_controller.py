@@ -21,21 +21,19 @@ class EnsightController:
         self.parameters = parameters
 
     def start_ensight(self):
-        
-        # TODO: ansys installation will need to change 
-        # HPC: ansys_installation = '/apps/ansys/25r1/v251', use_egl = True, use_mpi = 'openmpi', use_sos = 10  
+
+        # TODO: ansys installation will need to change
+        # HPC: ansys_installation = '/apps/ansys/25r1/v251', use_egl = True, use_mpi = 'openmpi', use_sos = 10, interconnect = 'ethernet'
         # MPI IS A MAYBE?? DOESNT SEEM TO WORK
         # Workstation: ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251'
         session = ens.LocalLauncher(
-            batch              = True, 
-            ansys_installation = '/apps/ansys/25r1/v251',
-            use_egl = True,
-            additional_command_line_options = ['-glconfig', '-v','5'],
+            batch              = True,
+            ansys_installation = 'C:\\Program Files\\ANSYS Inc\\v251',
+            additional_command_line_options = ['-glconfig', '-v','3'],
             use_sos = 3,
-            use_mpi = 'intel2021',
-            interconnect = 'ethernet'
+            use_mpi = 'intel2021'
         ).start()
-        
+
 
         self.session = session
         self.ensight = self.session.ensight
@@ -47,7 +45,7 @@ class EnsightController:
         self.views  = self.ensight.utils.views
         self.query  = self.ensight.utils.query
         self.cwd    = os.getcwd()
-        
+
         self.load_data()
 
         self.ensight.file.animation_format("mpeg4")
@@ -111,7 +109,7 @@ class EnsightController:
                 'FILL'            : True
             }
         )
-                                                        
+
         self.bottom_arrow = self.shape_default.createannot('bottom_arrow')
         self.bottom_arrow.setattrs(
             {
@@ -144,7 +142,7 @@ class EnsightController:
                 'WIDTH'         : 0.02
             }
         )
-        
+
         self.bottom_gauge = self.gauge_default.createannot(self.vibration_state_neg.DESCRIPTION)
         self.bottom_gauge.setattrs(
             {
@@ -161,7 +159,7 @@ class EnsightController:
                 'WIDTH'         : 0.02
             }
         )
-        
+
         self.text_1 = self.text_default.createannot('l')
         self.text_1.setattrs(
             {
@@ -198,6 +196,7 @@ class EnsightController:
 
     def create_animation(self, fname = 'bruh'):
 
+        print(f'Starting animation: {fname}')
         self.ensight.solution_time.update_to_first()
         self.ensight.file.animation_rend_offscreen("ON")
         self.ensight.file.animation_numpasses(16)
@@ -219,12 +218,13 @@ class EnsightController:
         self.ensight.file.animation_reset_time("ON")
         self.ensight.file.animation_reset_keyframe("OFF")
         self.ensight.file.save_animation()
+        print(f'Animation: {fname}, completed.')
 
-    
+
     def load_data(self):
         '''
         Docstring for load_data
-        
+
         :param self: Description
         '''
 
@@ -257,7 +257,7 @@ class EnsightController:
     def get_files(self):
         '''
         Finds the file with shortest file name with extension .cas.h5 in the selected data folder.
-        
+
         A fluent run using the case file
         '''
         return min(glob.glob(os.path.join(self.folder,'*.cas.h5')), key=lambda x: len(os.path.basename(x)))[:-7] + '-1-*'
@@ -265,7 +265,7 @@ class EnsightController:
 
     def init_variables(self):
         '''
-        
+
         '''
         print('Initialising Variables.')
         start_time = time.time()
@@ -280,7 +280,7 @@ class EnsightController:
         self.cycle_time = self.eocore.create_variable(
             name    = 'cycle_time',
             sources = [self.fluid_part],
-            value   = f"Analysis_Time*{str(self.parameters['frequency'])}"
+            value   = f"Analysis_Time*{str(self.parameters['vibration_frequency'])}"
         )
 
         cycle_time_query = self.eoutil.query.create_temporal(
@@ -303,7 +303,7 @@ class EnsightController:
         self.results_data.index.name = 'timestep_number'
 
         del time_data, cycle_time_query
-        
+
         self.vibration_state = self.eocore.create_variable(
             name    = 'vibration_state',
             sources = [self.fluid_part],
@@ -316,57 +316,57 @@ class EnsightController:
             sources = [self.fluid_part],
             value   = f'GT(vibration_state,0)'
         )
-        
+
         self.vibration_state_neg = self.eocore.create_variable(
             name    = 'vibration_state_neg',
             sources = [self.fluid_part],
             value   = f'LT(vibration_state,0)'
         )
-        
+
         # Calculate shearrate variables
         self.eocore.create_variable(
             name    = 'temp_1',
-            value   = '0*air_vof@MLL/TT', 
-            sources = [self.fluid_part], 
+            value   = '0*air_vof@MLL/TT',
+            sources = [self.fluid_part],
             private = 1
         )
-        
+
         self.eocore.create_variable(
             name    = 'temp_2',
-            value   = '1+temp_1', 
-            sources = [self.fluid_part], 
+            value   = '1+temp_1',
+            sources = [self.fluid_part],
             private = 1
         )
-        
+
         self.eocore.create_variable(
             name    = 'water_threshold',
-            value   = 'IF_GT(water_vof,0.75)', 
+            value   = 'IF_GT(water_vof,0.75)',
             sources = [self.fluid_part]
         )
-        
+
         self.eocore.create_variable(
             name    = 'temp_shear',
-            value   = 'FluidShearMax(plist,velocity,1.0,temp_1,temp_2,1.0)', 
-            sources = [self.fluid_part], 
+            value   = 'FluidShearMax(plist,velocity,1.0,temp_1,temp_2,1.0)',
+            sources = [self.fluid_part],
             private = 1
         )
-        
+
         self.shearrate = self.eocore.create_variable(
-            name    = 'shearrate', 
-            value   = 'water_threshold*temp_shear@/T', 
+            name    = 'shearrate',
+            value   = 'water_threshold*temp_shear@/T',
             sources = [self.fluid_part]
         )
-        
+
         self.shearrate_vf = self.eocore.create_variable(
-            name    = 'shearrate_vf', 
-            value   = 'water_vof*temp_shear@/T', 
+            name    = 'shearrate_vf',
+            value   = 'water_vof*temp_shear@/T',
             sources = [self.fluid_part]
         )
 
         # Calculate outlet flowrate variables
         self.water_velocity = self.eocore.create_variable(
-            name    = 'water_velocity', 
-            value   = 'velocity*water_vof', 
+            name    = 'water_velocity',
+            value   = 'velocity*water_vof',
             sources = [self.fluid_part, self.outlet_part],
             private = 1
         )
@@ -383,7 +383,7 @@ class EnsightController:
 
     def init_parts(self):
         '''
-        
+
         '''
         self.fluid_part          = self.eocore.PARTS['fluid'][0]
         self.symmetry_part       = self.eocore.PARTS['symmetry'][0]
@@ -406,8 +406,8 @@ class EnsightController:
         start_time = time.time()
 
         self.basic_iso_part = self.iso_default.createpart(
-            name       = "basic_iso", 
-            sources    = self.fluid_part, 
+            name       = "basic_iso",
+            sources    = self.fluid_part,
             attributes = [
                 ['VARIABLE',   self.vf_water],
                 ['COLORBYRGB', [0.2, 0.6, 1]],
@@ -426,10 +426,10 @@ class EnsightController:
         self.solid_coupling_part.VISIBLE = True
 
         self.solid_coupling_part.setattrs({
-            'OPAQUENESS' : 1,
+            'OPAQUENESS' : 0.75,
             'COLORBYRGB' : [0.57, 0.57, 0.57]
         })
-        
+
         self.vf_air_palette = self.vf_air.PALETTE['air_vof<\\\\units>'][0]
         self.vf_air.LEGEND['air_vof<\\\\units>'][0].VISIBLE = False
 
@@ -457,10 +457,10 @@ class EnsightController:
     def velocity_animation(self):
 
         start_time = time.time()
-        
+
         self.velocity_iso_part = self.iso_default.createpart(
-            name       = "velocity_iso", 
-            sources    = self.fluid_part, 
+            name       = "velocity_iso",
+            sources    = self.fluid_part,
             attributes = [
                 ['VARIABLE',       self.vf_water],
                 ['COLORBYPALETTE', self.velocity]
@@ -501,7 +501,7 @@ class EnsightController:
             'COLORBYRGB' : [0.57, 0.57, 0.57]
         })
 
-        self.velocity_legend.VISIBLE = False 
+        self.velocity_legend.VISIBLE = False
 
         self.set_default_view()
 
@@ -546,21 +546,21 @@ class EnsightController:
 
 
     def shearrate_animation(self): # TODO
-        
+
         # The view must be translated to fit the plot into the display window.
         self.ensight.view_transf.translate(-2e-04,0,0)
         self.ensight.view_transf.zoom(1.2)
 
         self.shearrate_iso_part = self.iso_default.createpart(
-            name="shearrate_iso", 
-            sources=self.fluid_part, 
+            name="shearrate_iso",
+            sources=self.fluid_part,
             attributes=[
                 ['VARIABLE',   self.vf_water],
                 ['TYPE',       self.eonums.ISO_SURF_SOLID],
                 ['CONSTRAINT', self.eonums.CLIP_CHOICE_GREATER]
             ]
         )[0]
-        
+
         self.shearrate_iso_part.COLORBYPALETTE = self.shearrate
         self.fluid_part.VISIBLE                = False
         self.symmetry_part.VISIBLE             = False
@@ -569,7 +569,7 @@ class EnsightController:
 
         self.shearrate_palette = self.shearrate.PALETTE[0]
         self.shearrate_legend  = self.shearrate.LEGEND[0]
-        
+
         self.shearrate_palette.set_range_to_over_time_minmax(self.t0[0], self.tn[0])
         self.shearrate_palette.setattrs(
             {
@@ -587,7 +587,7 @@ class EnsightController:
                 'DESCRIPTION' : 'Shear-rate <\\\\units>'
             }
         )
-        
+
         self.max_shearrate_query.setattrs(
             {
                 'LINESTYLE' : self.eonums.LINE_SOLID,
@@ -643,11 +643,11 @@ class EnsightController:
     def flowrate_calculation(self, plot_results = False, animate_results = False):
         '''
         Docstring for total_flowrate
-        
+
         :param self: Description
         :param plot_results: Description
         '''
-        
+
         if not hasattr(self, 'flowrate_query'):
             self.flowrate_query = self.eoutil.query.create_temporal(
                 name        = 'outlet_water_flowrate',
@@ -671,7 +671,7 @@ class EnsightController:
             self.results_data['volumetric_flowrate']     = volumetric_flowrate
 
             print(green_text('Outlet flowrate calculation completed'))
-        
+
         if plot_results:
             self.flowrate_plot()
 
@@ -685,16 +685,16 @@ class EnsightController:
 
     def flowrate_plot(self): # TODO
         '''
-        
+
         '''
         f,ax = plt.subplots(1,2)
-            
+
         ax[0].plot(self.results_data['analysis_time'], self.results_data['total_volume_delivered'])
         ax[1].plot(self.results_data['analysis_time'], self.results_data['volumetric_flowrate'])
-        
+
         plt.show()
 
-    
+
     def flowrate_animation(self): # TODO
 
         pass
@@ -705,7 +705,7 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
-        
+
         fft_calculator = FFT_ISO(parameters = self.parameters)
 
         self.coord_iso = self.iso_default.createpart(name="coord_iso", sources=self.fluid_part, attributes=[['VARIABLE',self.vf_water]])[0]
@@ -715,11 +715,11 @@ class EnsightController:
 
         for i in range(self.tn[0]):
             self.iso_surface_coordinates = self.coord_iso.get_values([self.coords], activate=1)[self.coords]
-            
+
             fft_calculator.solve(data=self.iso_surface_coordinates, time_data=[self.eocore.TIMESTEP+1,self.eocore.SOLUTIONTIME])
 
             fft_calculator.small_plot(f'FFT Plot t={i}', os.path.join('output', f'iso_plot_{int(self.eocore.TIMESTEP+1)}.png'))
-            
+
             self.ensight.solution_time.step_forward()
 
         print(green_text('FFT of fluid surface completed'))
@@ -727,14 +727,14 @@ class EnsightController:
 
 if __name__ == '__main__':
     parameters = {
-        'frequency'           : 1.63e6,
-        'amplitude'           : 1e-6,
+        'vibration_frequency' : 1.63e6,
+        'vibration_amplitude' : 1e-6,
         'n_cycles'            : 60,
-        'n_levels_refinement' : 5,
+        'n_elements'          : 35,
         'channel_width'       : 50,
         'grid_size'           : 500
     }
-    
+
     folders = [
         'C:\\Users\\PCUser\\Documents\\test'
     ]
@@ -742,7 +742,7 @@ if __name__ == '__main__':
     for i,folder in enumerate(folders):
 
         ensig = EnsightController(
-            parameters = parameters, 
+            parameters = parameters,
             folder = folder
         )
 
