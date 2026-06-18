@@ -191,12 +191,19 @@ class ControlPostProcessor:
         :param self: Description
         '''
 
-        fpath = os.path.join(self.folder, 'output', 'droplet_data.csv')
+        fpath = os.path.join(self.folder, 'output', 'cumulative_droplet_data.csv')
 
         if os.path.exists(fpath):
-            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'droplet_data.csv'))))
+            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'cumulative_droplet_data.csv'))))
 
         self.droplet_sizer.results_data.to_csv(fpath)
+
+        fpath = os.path.join(self.folder, 'output', 'individual_droplet_data.csv')
+
+        if os.path.exists(fpath):
+            print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'individual_droplet_data.csv'))))
+
+        self.droplet_sizer.individual_droplet_data.to_csv(fpath)
 
 
     def save_ensight_data_to_csv(self):

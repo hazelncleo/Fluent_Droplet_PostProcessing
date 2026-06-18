@@ -4,7 +4,5 @@
     "n_cycles"            : 40,
     "n_elements"          : 35,
     "channel_width"       : 30,
-    "grid_size"           : 500,
-    "geometry"            : "straight",
-    "sim_setup"           : "rigid"
+    "grid_size"           : 500
 }

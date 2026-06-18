@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib.ticker as ticker
 from HazelsAwesomeTheme import red_text,green_text,blue_text,yellow_text
+import time
 
 def tryint(s):
     try:
@@ -33,6 +34,10 @@ class DropletSizingScriptController:
 
         :param self: Description
         '''
+
+        start_time = time.time()
+
+        print('Droplet sizing calculation started')
 
         METRECUBED_TO_MICRON = 1e18
         VOLUME_COEFF         = 3 / (4 * np.pi)
@@ -73,10 +78,24 @@ class DropletSizingScriptController:
             # Append current step diameters & volumes
             if i == 0:
                 total_diameters = no_large_diameters['diameter']
-                total_volumes = no_large_diameters['volume']
+                total_volumes   = no_large_diameters['volume']
+                total_mass      = no_large_diameters['mass']
+                x_position      = no_large_diameters['x']
+                y_position      = no_large_diameters['y']
+                z_position      = no_large_diameters['z']
+                x_velocity      = no_large_diameters['u']
+                y_velocity      = no_large_diameters['v']
+                z_velocity      = no_large_diameters['w']
             else:
                 total_diameters = np.hstack((total_diameters, no_large_diameters['diameter']))
-                total_volumes = np.hstack((total_volumes, no_large_diameters['volume']))
+                total_volumes   = np.hstack((total_volumes, no_large_diameters['volume']))
+                total_mass      = np.hstack((total_mass, no_large_diameters['mass']))
+                x_position      = np.hstack((x_position, no_large_diameters['x']))
+                y_position      = np.hstack((y_position, no_large_diameters['y']))
+                z_position      = np.hstack((z_position, no_large_diameters['z']))
+                x_velocity      = np.hstack((x_velocity, no_large_diameters['u']))
+                y_velocity      = np.hstack((y_velocity, no_large_diameters['v']))
+                z_velocity      = np.hstack((z_velocity, no_large_diameters['w']))
 
             if total_diameters.shape[0] >= 1:
 
@@ -100,10 +119,21 @@ class DropletSizingScriptController:
             }
         )
 
-        self.temp_data = {
-            'total_diameters'        : total_diameters,
-            'total_volumes'          : total_volumes
-        }
+        self.individual_droplet_data = pd.DataFrame({
+            'total_diameters' : total_diameters,
+            'total_volumes'   : total_volumes,
+            'total_mass'      : total_mass,
+            'x_position'      : x_position,
+            'y_position'      : y_position,
+            'z_position'      : z_position,
+            'x_velocity'      : x_velocity,
+            'y_velocity'      : y_velocity,
+            'z_velocity'      : z_velocity,
+        })
+
+
+        end_time = time.time()
+        print(green_text('Droplet sizing calculation completed in {:.2f}s'.format(end_time-start_time)))
 
         if plot_results:
             self.droplet_sizing_plot()
@@ -144,8 +174,8 @@ class DropletSizingScriptController:
         )
 
         sns.histplot(
-            x         = self.temp_data['total_diameters'],
-            weights   = self.temp_data['total_volumes'],
+            x         = self.individual_droplet_data['total_diameters'],
+            weights   = self.individual_droplet_data['total_volumes'],
             stat      = 'density',
             bins      = N_BINS,
             kde       = True,

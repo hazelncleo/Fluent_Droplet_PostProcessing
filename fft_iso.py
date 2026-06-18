@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.fft import fftfreq, fftshift, fft2
+from scipy.fft import fftfreq, fftshift, fftn
 from scipy.interpolate import LinearNDInterpolator
 from skimage.filters import window
 from seaborn import color_palette, dark_palette
@@ -16,13 +16,12 @@ class FFT_ISO:
             'n_cycles'            : 60,
             'n_elements'          : 35,
             'channel_width'       : 50,
-            'grid_size'           : 500,
-            'geometry'            : 'straight',
-            'sim_setup'           : 'rigid'
+            'grid_size'           : 500
         },
+        n_timesteps = 40,
+        times       = [0, 2.5e-5],
         use_ggplot_styling = True
     ):
-
         '''
         Docstring for __init__
 
@@ -37,17 +36,20 @@ class FFT_ISO:
         self.cmap_psd    = color_palette('rocket', as_cmap = True)
         self.cmap_deform = dark_palette("#69d", as_cmap = True)
         self.parameters  = parameters
+        self.times       = times
 
         # Calculate sampling data from provided parameters TODO Parameter handling
         self.sampling_data = {
             'elements_along_width'  : self.parameters['n_elements'],
-            'elements_along_length' : np.ceil(self.parameters['n_elements'] * self.parameters['grid_size'] / self.parameters['channel_width'])
+            'elements_along_length' : int(np.ceil(self.parameters['n_elements'] * self.parameters['grid_size'] / self.parameters['channel_width'])),
+            'n_samples_time'        : n_timesteps
         }
 
         self.sampling_data.update({
-            'sample_spacing'   : self.parameters['grid_size'] / self.sampling_data['elements_along_length'],
-            'n_samples_width'  : self.sampling_data['elements_along_width'] + 1,
-            'n_samples_length' : self.sampling_data['elements_along_length'] + 1
+            'spatial_sample_spacing'  : self.parameters['grid_size'] / self.sampling_data['elements_along_length'],
+            'temporal_sample_spacing' : (self.times[1] - self.times[0]) / (self.sampling_data['n_samples_time'] - 1),
+            'n_samples_width'         : self.sampling_data['elements_along_width'] + 1,
+            'n_samples_length'        : self.sampling_data['elements_along_length'] + 1
         })
 
         self.data_loaded = False
@@ -67,31 +69,32 @@ class FFT_ISO:
         Create both spatial and frequency domain meshes
         '''
 
-        self.meshes = {}
-
         # Get 1D spatial and frequency domain meshes
-        self.meshes['channel_width'] = np.linspace(
-            start = -int(self.parameters['channel_width'] / 2),
-            stop  =  int(self.parameters['channel_width'] / 2),
-            num   =  self.sampling_data['n_samples_width']
-        )
+        self.meshes = {
+            'channel_width' : np.linspace(
+                start = -int(self.parameters['channel_width'] / 2),
+                stop  =  int(self.parameters['channel_width'] / 2),
+                num   =  self.sampling_data['n_samples_width']
+            ),
+            'channel_length' : np.linspace(
+                start = -int(self.parameters['grid_size'] / 2),
+                stop  =  int(self.parameters['grid_size'] / 2),
+                num   =  self.sampling_data['n_samples_length']
+            ),
+            'time' : np.linspace(
+                start = self.times[0] + (self.sampling_data['n_samples_time'] / 20),
+                stop  = self.times[1] - (self.sampling_data['n_samples_time'] / 20),
+                num   = self.sampling_data['n_samples_time']
+            )
+        }
 
-        self.meshes['channel_length'] = np.linspace(
-            start = -int(self.parameters['grid_size'] / 2),
-            stop  =  int(self.parameters['grid_size'] / 2),
-            num   =  self.sampling_data['n_samples_length']
-        )
+        self.meshes['frequency']                = fftshift(fftfreq(self.sampling_data['n_samples_time'], self.sampling_data['temporal_sample_spacing']))
+        self.meshes['channel_width_frequency']  = fftshift(fftfreq(self.sampling_data['n_samples_width'], self.sampling_data['spatial_sample_spacing']))
+        self.meshes['channel_length_frequency'] = fftshift(fftfreq(self.sampling_data['n_samples_length'], self.sampling_data['spatial_sample_spacing']))
 
-        self.meshes['channel_width_frequency'] = fftshift(fftfreq(self.sampling_data['n_samples_width'], self.sampling_data['sample_spacing']))
-        self.meshes['channel_length_frequency'] = fftshift(fftfreq(self.sampling_data['n_samples_length'], self.sampling_data['sample_spacing']))
+        self.meshes['x_mesh'], self.meshes['y_mesh'], self.meshes['t_mesh'] = np.meshgrid(self.meshes['channel_width'],  self.meshes['channel_length'], self.meshes['time'])
 
-        self.meshes['vertical_x_mesh'],   self.meshes['vertical_y_mesh']   = np.meshgrid(self.meshes['channel_width'],  self.meshes['channel_length'])
-
-        self.meshes['vertical_x_frequency_mesh'],   self.meshes['vertical_y_frequency_mesh']   = np.meshgrid(self.meshes['channel_width_frequency'],  self.meshes['channel_length_frequency'])
-
-        if self.parameters['geometry'] != 'straight':
-            self.meshes['horizontal_x_mesh'], self.meshes['horizontal_y_mesh'] = np.meshgrid(self.meshes['channel_length'], self.meshes['channel_width'])
-            self.meshes['horizontal_x_frequency_mesh'], self.meshes['horizontal_y_frequency_mesh'] = np.meshgrid(self.meshes['channel_length_frequency'], self.meshes['channel_width_frequency'])
+        self.meshes['x_frequency_mesh'], self.meshes['y_frequency_mesh'], self.meshes['frequency_mesh'] = np.meshgrid(self.meshes['channel_width_frequency'],  self.meshes['channel_length_frequency'], self.meshes['frequency'])
 
 
     def create_window_functions(self):
@@ -99,38 +102,29 @@ class FFT_ISO:
         Create 2D window functions
         '''
 
-        self.windows = {
-            'vertical'   : window(('tukey', 0.75), self.meshes['vertical_x_mesh'].shape)
-        }
+        #self.window = window(('kaiser', 3), self.meshes['x_mesh'].shape)
+        self.window = window(('hann'), self.meshes['x_mesh'].shape)
 
-        if self.parameters['geometry'] != 'straight':
-            self.windows.update({
-                'horizontal' : window(('tukey', 0.75), self.meshes['horizontal_x_mesh'].shape)
-            })
+
+    def send_data(self, data, time, index):
+
+        # Create list
+        if index == self.sampling_data['n_samples_time']:
+            self.all_data_arrays = []
+
+        data_array = np.empty(shape = (data.shape[0], data.shape[1] + 1))
+        data_array[:,:2] = data[:,:2] * 1e6
+        data_array[:,2] = time * np.ones(shape = (data.shape[0]))
+        data_array[:,3] = data[:,2] * 1e6
+        self.all_data_arrays.append(data_array)
 
 
     def solve(self, data = None, file = None, time_data = [0,0]):
         '''
         Solve the fft of the surface data
-        NOTE: Either a numpy array of the data or a filepath pointing to a .npy file can be provided (Either of these is required)
         '''
 
-        # START FROM HERE FOR 3D
-
-        if data is not None:
-            if file:
-                print(yellow_text('Both Data and a File were provided, using the data for subsequent calculations.'))
-        elif file:
-            with open(file, 'rb') as f:
-                data = np.load(f)
-        else:
-            print(red_text('No Data or File was provided to perform the FFT on.'))
-            raise FileExistsError
-
-        # Convert data to micron
-        self.time_data = time_data
-        self.raw_data = data*1e6
-        del data
+        self.raw_data = np.concatenate(self.all_data_arrays)
 
         self.centre_data()
 
@@ -151,7 +145,8 @@ class FFT_ISO:
 
         :param self: Description
         '''
-        self.raw_data = self.raw_data - np.mean(self.raw_data, axis = 0)
+        # Centre x,y,z columns
+        self.data = self.raw_data - (np.array([1,1,0,1]) * np.mean(self.raw_data, axis = 0))
 
 
     def interpolate_data(self):
@@ -159,17 +154,11 @@ class FFT_ISO:
         Interpolate the raw data onto a cartesian grid.
         '''
 
-        interpolator = LinearNDInterpolator(self.raw_data[:,:2], self.raw_data[:,2], fill_value = 0)
+        interpolator = LinearNDInterpolator(self.data[:,:3], self.data[:,3], fill_value = 0)
 
-        self.data = {
-            'vertical'   : interpolator(self.meshes['vertical_x_mesh'], self.meshes['vertical_y_mesh']),
-            'horizontal' : interpolator(self.meshes['horizontal_x_mesh'], self.meshes['horizontal_y_mesh'])
-        }
+        self.interpolated_data = interpolator(self.meshes['x_mesh'], self.meshes['y_mesh'], self.meshes['t_mesh'])
 
-        self.data.update({
-            'vertical_windowed'   : self.data['vertical'] * self.windows['vertical'],
-            'horizontal_windowed' : self.data['horizontal'] * self.windows['horizontal']
-        })
+        self.windowed_data = self.interpolated_data * self.window
 
 
     def calculate_ffts(self):
@@ -177,47 +166,14 @@ class FFT_ISO:
 
         '''
 
-        self.fft_data = {
-            'vertical'            : fftshift(fft2(self.data['vertical'])),
-            'horizontal'          : fftshift(fft2(self.data['horizontal'])),
-            'vertical_windowed'   : fftshift(fft2(self.data['vertical_windowed'])),
-            'horizontal_windowed' : fftshift(fft2(self.data['horizontal_windowed']))
-        }
+        self.fft_data = fftshift(fftn(self.windowed_data, workers = -1))
 
 
     def calculate_PSDs(self):
 
-        self.PSD = {
-            'vertical'            : np.log(np.abs(self.fft_data['vertical'])**2),
-            'horizontal'          : np.log(np.abs(self.fft_data['horizontal'])**2),
-            'vertical_windowed'   : np.log(np.abs(self.fft_data['vertical_windowed'])**2),
-            'horizontal_windowed' : np.log(np.abs(self.fft_data['horizontal_windowed'])**2)
-        }
+        self.PSD = np.log(np.abs(self.fft_data)**2)
 
-        self.PSD.update({
-            'vertical_flat'            : self.PSD['vertical'].flatten(),
-            'horizontal_flat'          : self.PSD['horizontal'].flatten(),
-            'vertical_windowed_flat'   : self.PSD['vertical_windowed'].flatten(),
-            'horizontal_windowed_flat' : self.PSD['horizontal_windowed'].flatten()
-        })
-
-
-    def calculate_masks(self):
-        '''
-        Calculate Masks to filter the data for plotting
-        '''
-
-        self.masks = {
-            'vertical_zero'    : self.norms['vertical_frequency_flat']   != 0,
-            'horizontal_zero'  : self.norms['horizontal_frequency_flat'] != 0,
-            'vertical_range'   : self.norms['vertical_frequency_flat']   >  0.02,
-            'horizontal_range' : self.norms['horizontal_frequency_flat'] >  0.02
-        }
-
-        self.masks.update({
-            'vertical_zero-range'   : self.masks['vertical_range'][self.masks['vertical_zero']],
-            'horizontal_zero-range' : self.masks['horizontal_range'][self.masks['horizontal_zero']]
-        })
+        self.flat_PSD = self.PSD.reshape(self.PSD.shape[0]*self.PSD.shape[1], self.PSD.shape[2])
 
 
     def calculate_normed_wavelengths(self):
@@ -226,21 +182,24 @@ class FFT_ISO:
         '''
 
         self.norms = {
-            'vertical_frequency'   : np.sqrt(self.meshes['vertical_x_frequency_mesh']**2   + self.meshes['vertical_y_frequency_mesh']**2),
-            'horizontal_frequency' : np.sqrt(self.meshes['horizontal_x_frequency_mesh']**2 + self.meshes['horizontal_y_frequency_mesh']**2)
+            'frequency' : np.sqrt(self.meshes['x_frequency_mesh']**2 + self.meshes['y_frequency_mesh']**2)
         }
 
-        self.norms.update({
-            'vertical_frequency_flat'   : self.norms['vertical_frequency'].flatten(),
-            'horizontal_frequency_flat' : self.norms['horizontal_frequency'].flatten()
-        })
+        self.norms['flat_frequency'] = self.norms['frequency'].reshape(self.norms['frequency'].shape[0]*self.norms['frequency'].shape[1], self.norms['frequency'].shape[2])
 
         self.calculate_masks()
 
-        self.norms.update({
-            'vertical_wavelength_flat'   : np.reciprocal(self.norms['vertical_frequency_flat'][self.masks['vertical_zero']]),
-            'horizontal_wavelength_flat' : np.reciprocal(self.norms['horizontal_frequency_flat'][self.masks['horizontal_zero']])
-            })
+
+
+    def calculate_masks(self):
+        '''
+        Calculate Masks to filter the data for plotting
+        '''
+
+        self.masks = {
+            'remove_zero'  : self.norms['flat_frequency'] != 0,
+            'filter_range' : np.logical_and((self.norms['flat_frequency'] > 0.02), (self.norms['flat_frequency'] != 0))
+        }
 
 
     def angles_from_frequency_data(self):
@@ -494,25 +453,18 @@ class FFT_ISO:
             f.savefig(file_name, dpi = 750)
 
 
-    def small_plot(self, title = None, file_name = None, display = False): # TODO
+    def small_plot(self, title = None, file_name = None, display = False, index = 0): # TODO
 
 
         # Create plot objects
-        f_v,ax_v = plt.subplots(
+        fig,ax = plt.subplots(
             nrows   = 1,
             ncols   = 3,
             layout  = 'constrained',
             figsize = (11,4.5)
         )
 
-        f_h,ax_h = plt.subplots(
-            nrows   = 1,
-            ncols   = 3,
-            layout  = 'constrained',
-            figsize = (12,3.5)
-        )
-
-        f_v.get_layout_engine().set(
+        fig.get_layout_engine().set(
             w_pad  = 0.15,
             h_pad  = 0.075,
             hspace = 0.05,
@@ -520,99 +472,97 @@ class FFT_ISO:
         )
 
         if title:
-            f_v.suptitle(title+', vertical data.', size = 16)
-            f_h.suptitle(title+', horizontal data.', size = 16)
+            fig.suptitle(title, size = 16)
 
         # Set Styling
-        ax_v[0].set(
+        ax[0].set(
             xlim   = [-int(self.parameters['grid_size'] / 2), int(self.parameters['grid_size'] / 2)],
             ylim   = [-int(self.parameters['grid_size'] / 2), int(self.parameters['grid_size'] / 2)],
             aspect = 'equal'
         )
 
-        ax_v[1].set(
-            xlim   = [np.min(self.meshes['vertical_y_frequency_mesh']), np.max(self.meshes['vertical_y_frequency_mesh'])],
-            ylim   = [np.min(self.meshes['vertical_y_frequency_mesh']), np.max(self.meshes['vertical_y_frequency_mesh'])],
+        ax[1].set(
+            xlim   = [np.min(self.meshes['y_frequency_mesh'][:,:,index]), np.max(self.meshes['y_frequency_mesh'][:,:,index])],
+            ylim   = [np.min(self.meshes['y_frequency_mesh'][:,:,index]), np.max(self.meshes['y_frequency_mesh'][:,:,index])],
             aspect = 'equal'
         )
 
-        ax_v[2].set_aspect(1.75)
+        ax[2].set_aspect(1.75)
 
-        ax_v[0].set_title('Raw displacement data of surface.', fontsize = 10)
-        ax_v[1].set_title('Logged PSD', fontsize = 10)
-        ax_v[2].set_title('Normed Wavelength Powers', fontsize = 10)
+        ax[0].set_title('Raw displacement data of surface.', fontsize = 10)
+        ax[1].set_title('Logged PSD', fontsize = 10)
+        ax[2].set_title('Normed Wavelength Powers', fontsize = 10)
 
-        ax_v[0].set_xlabel(r'$x$ Position $(\mu m)$', fontsize = 9)
-        ax_v[1].set_xlabel(r'Spatial Frequency X $(\frac{1}{\mu m})$', fontsize = 9)
-        ax_v[2].set_xlabel(r'Wavelength $(\mu m)$', fontsize = 9)
+        ax[0].set_xlabel(r'$x$ Position $(\mu m)$', fontsize = 9)
+        ax[1].set_xlabel(r'Spatial Frequency X $(\frac{1}{\mu m})$', fontsize = 9)
+        ax[2].set_xlabel(r'Wavelength $(\mu m)$', fontsize = 9)
 
-        ax_v[0].set_ylabel(r'$y$ Position $(\mu m)$', fontsize = 9)
-        ax_v[1].set_ylabel(r'Spatial Frequency Y $(\frac{1}{\mu m})$', fontsize = 9)
-        ax_v[2].set_ylabel(r'Power $(\mu m^4)$', fontsize = 9)
+        ax[0].set_ylabel(r'$y$ Position $(\mu m)$', fontsize = 9)
+        ax[1].set_ylabel(r'Spatial Frequency Y $(\frac{1}{\mu m})$', fontsize = 9)
+        ax[2].set_ylabel(r'Power $(\mu m^4)$', fontsize = 9)
 
         # Calculate colorbar ranges
-        height_cmap_min_v = self.data['vertical'].min()
-        height_cmap_max_v = self.data['vertical'].max()
-        PSD_cmap_min_v    = self.PSD['vertical_windowed'].min()
-        PSD_cmap_max_v    = self.PSD['vertical_windowed'].max()
+        height_cmap_min_v = self.interpolated_data[:,:,index].min()
+        height_cmap_max_v = self.interpolated_data[:,:,index].max()
+        PSD_cmap_min_v    = self.PSD[:,:,index].min()
+        PSD_cmap_max_v    = self.PSD[:,:,index].max()
 
-        display_height_cmap = ax_v[0].pcolormesh(
-            self.meshes['vertical_x_mesh'],
-            self.meshes['vertical_y_mesh'],
-            self.data['vertical'],
+        display_height_cmap = ax[0].pcolormesh(
+            self.meshes['x_mesh'][:,:,index],
+            self.meshes['y_mesh'][:,:,index],
+            self.interpolated_data[:,:,index],
             cmap = self.cmap_deform,
             vmin = height_cmap_min_v,
             vmax = height_cmap_max_v
         )
 
-        cb_v = f_v.colorbar(
+        cb = fig.colorbar(
             display_height_cmap,
-            ax       = ax_v[0],
+            ax       = ax[0],
             location = 'bottom',
             orientation = 'horizontal'
         )
 
-        cb_v.set_label(
+        cb.set_label(
             label    = r'$z$ Displacement $(\mu m)$',
             fontsize = 8
         )
 
-        cb_v.ax.tick_params(labelsize=6)
+        cb.ax.tick_params(labelsize=6)
 
-        display_PSD_cmap = ax_v[1].pcolormesh(
-            self.meshes['vertical_x_frequency_mesh'],
-            self.meshes['vertical_y_frequency_mesh'],
-            self.PSD['vertical_windowed'],
+        display_PSD_cmap = ax[1].pcolormesh(
+            self.meshes['x_frequency_mesh'][:,:,index],
+            self.meshes['y_frequency_mesh'][:,:,index],
+            self.PSD[:,:,index],
             cmap = self.cmap_psd,
             vmin = PSD_cmap_min_v,
             vmax = PSD_cmap_max_v
         )
 
-        cb_v = f_v.colorbar(
+        cb_2 = fig.colorbar(
             display_PSD_cmap,
-            ax       = ax_v[1],
+            ax       = ax[1],
             location = 'bottom',
             orientation = 'horizontal'
         )
 
-        cb_v.set_label(
+        cb_2.set_label(
             label    = r'Power $(\mu m^4)$',
             fontsize = 8
         )
 
-        cb_v.ax.tick_params(labelsize=6)
+        cb_2.ax.tick_params(labelsize=6)
 
-        ax_v[2].scatter(
-            x     = self.norms['vertical_wavelength_flat'][self.masks['vertical_zero-range']],
-            y     = self.PSD['vertical_windowed_flat'][self.masks['vertical_range']],
+        ax[2].scatter(
+            x     = np.reciprocal(self.norms['flat_frequency'][:,index][self.masks['filter_range'][:,index]]),
+            y     = self.flat_PSD[:,index][self.masks['filter_range'][:,index]],
             color = 'k',
             s     = 0.75
         )
 
         wavelength = self.calculate_theory_wavelength()
 
-        # Finalizing Styling TODO: Add calculation for predicted wavelength from theory
-        ax_v[2].axvline(
+        ax[2].axvline(
             x      = wavelength,
             ymin   = 0,
             ymax   = 1,
@@ -623,7 +573,7 @@ class FFT_ISO:
             label  = r'{:.1f}$\mu m$'.format(wavelength)
         )
 
-        ax_v[2].legend(
+        ax[2].legend(
             loc            = 'lower right',
             title          = 'Theory Wavelength',
             fancybox       = True,
@@ -635,7 +585,7 @@ class FFT_ISO:
             plt.show()
 
         if file_name:
-            f_v.savefig(file_name, dpi = 750)
+            fig.savefig(file_name, dpi = 1200)
 
 
     def output_data(self): # TODO

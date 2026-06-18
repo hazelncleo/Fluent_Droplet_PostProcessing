@@ -5,13 +5,13 @@ with warnings.catch_warnings():
     import ansys.pyensight.core as ens
     warnings.simplefilter("default")
 
-import time
 import numpy as np
 import os
 import matplotlib.pyplot as plt
 import glob
 from HazelsAwesomeTheme import red_text,green_text,blue_text,yellow_text
 import pandas as pd
+import time
 
 from fft_iso import FFT_ISO
 
@@ -323,6 +323,13 @@ class EnsightController:
             value   = f'LT(vibration_state,0)'
         )
 
+        self.max_velocity = self.eocore.create_variable(
+            name    = 'max_velocity',
+            value   = 'Max(plist,velocity,[],compute_per_case)',
+            sources = [self.fluid_part],
+            private = 1
+        )
+
         # Calculate shearrate variables
         self.eocore.create_variable(
             name    = 'temp_1',
@@ -481,16 +488,27 @@ class EnsightController:
             }
         )
 
-        self.velocity_palette.set_range_to_over_time_minmax(self.t0[0], self.tn[0])
+        if not hasattr(self, 'max_velocity_query'):
+            self.max_velocity_query = self.eoutil.query.create_temporal(
+                name        = 'Max velocity vs cycle time',
+                query_type  = self.eoutil.query.TEMPORAL_MAXIMUM,
+                part_list   = [self.fluid_part],
+                variable1   = self.max_velocity,
+                variable2   = self.cycle_time,
+                new_plotter = False
+            )
+
+        final_max_velocity = np.max(np.array(self.max_velocity_query.QUERY_DATA['xydata']).transpose()[1])
 
         self.velocity_palette.setattrs({
-            'MINMAX' : [0, int(np.ceil(self.velocity_palette.MINMAX[1]))],
+            'MINMAX' : [0, int(np.ceil(final_max_velocity))],
             'NLEVELS': 11
         })
 
         self.velocity_legend.setattrs({
             'TYPE'    : self.eonums.FNC_CONST,
-            'FORMAT'  : '%0.1f'
+            'FORMAT'  : '%0.1f',
+            'VISIBLE' : True
         })
 
         self.create_animation('velocity_animation')
@@ -570,12 +588,13 @@ class EnsightController:
         self.shearrate_palette = self.shearrate.PALETTE[0]
         self.shearrate_legend  = self.shearrate.LEGEND[0]
 
-        self.shearrate_palette.set_range_to_over_time_minmax(self.t0[0], self.tn[0])
+        final_max_shearrate = np.max(self.results_data['max_shearrate'])
+
         self.shearrate_palette.setattrs(
             {
                 'SCALE_METHOD' : self.eonums.PALETTE_SCALE_LOG,
-                'MINMAX'       : [1, np.power(10, np.ceil(np.log10(self.shearrate_palette.MINMAX[1])))],
-                'NLEVELS'      : int(1 + np.log10(np.round(self.shearrate_palette.MINMAX[1])))
+                'MINMAX'       : [1, int(np.power(10, np.ceil(np.log10(final_max_shearrate))))],
+                'NLEVELS'      : int(np.ceil(1 + np.log10(final_max_shearrate)))
             }
         )
 
@@ -584,7 +603,8 @@ class EnsightController:
                 'TYPE'        : self.eonums.FNC_CONST,
                 'FORMAT'      : '%0.1e',
                 'HEIGHT'      : 0.45,
-                'DESCRIPTION' : 'Shear-rate <\\\\units>'
+                'DESCRIPTION' : 'Shear-rate <\\\\units>',
+                'VISIBLE'     : True
             }
         )
 
@@ -705,38 +725,52 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
+        MAX_N_TIMESTEPS_TO_EXTRACT = 40
+        n_timesteps = min(MAX_N_TIMESTEPS_TO_EXTRACT, len(self.eocore.TIMEVALUES))
 
-        fft_calculator = FFT_ISO(parameters = self.parameters)
+        times = [self.eocore.TIMEVALUES[-(n_timesteps + 1)][1], self.eocore.TIMEVALUES[-1][1]]
+
+        fft_calculator = FFT_ISO(parameters = self.parameters, n_timesteps = n_timesteps, times = times)
 
         self.coord_iso = self.iso_default.createpart(name="coord_iso", sources=self.fluid_part, attributes=[['VARIABLE',self.vf_water]])[0]
         self.ensight.solution_time.show_as("step")
         self.ensight.solution_time.increment(1)
-        self.ensight.solution_time.update_to_first()
+        self.ensight.solution_time.update_to_last()
 
-        for i in range(self.tn[0]):
+        for i in range(n_timesteps):
+
             self.iso_surface_coordinates = self.coord_iso.get_values([self.coords], activate=1)[self.coords]
 
-            fft_calculator.solve(data=self.iso_surface_coordinates, time_data=[self.eocore.TIMESTEP+1,self.eocore.SOLUTIONTIME])
+            fft_calculator.send_data(
+                data     = self.iso_surface_coordinates,
+                time     = self.eocore.SOLUTIONTIME,
+                index    = n_timesteps - i
+            )
 
-            fft_calculator.small_plot(f'FFT Plot t={i}', os.path.join('output', f'iso_plot_{int(self.eocore.TIMESTEP+1)}.png'))
+            self.ensight.solution_time.step_backward()
 
-            self.ensight.solution_time.step_forward()
+        fft_calculator.solve()
+
+        fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'iso_plot_1.png'), index = 19)
+        fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'iso_plot_2.png'), index = 20)
+        fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'iso_plot_3.png'), index = 21)
 
         print(green_text('FFT of fluid surface completed'))
+
 
 
 if __name__ == '__main__':
     parameters = {
         'vibration_frequency' : 1.63e6,
-        'vibration_amplitude' : 1e-6,
-        'n_cycles'            : 60,
+        'vibration_amplitude' : 0.5e-6,
+        'n_cycles'            : 40,
         'n_elements'          : 35,
-        'channel_width'       : 50,
+        'channel_width'       : 30,
         'grid_size'           : 500
     }
 
     folders = [
-        'C:\\Users\\PCUser\\Documents\\test'
+        'C:\\Users\\PCUser\\Documents\\simulations\\temp_storage\\163\\wavelengths'
     ]
 
     for i,folder in enumerate(folders):
@@ -750,11 +784,7 @@ if __name__ == '__main__':
 
         ensig.start_ensight()
 
-        ensig.set_iso_view()
-
-        ensig.basic_animation()
-
-        ensig.velocity_animation()
+        ensig.fft_of_surface()
 
         ensig.session.close()
 
