@@ -5,7 +5,7 @@ import json
 
 '''
 -------------------------------------------------------------------
-    Command-line interface for the PALM Ensight post-processor.    
+    Command-line interface for the PALM Ensight post-processor.
 -------------------------------------------------------------------
     Arguments
 -------------------------------------------------------------------
@@ -68,7 +68,7 @@ def main():
     parser.add_argument('-o', '--options', help='json file containing the post-processing options', metavar='*.json')
 
     args = parser.parse_args()
-    
+
 
     if os.path.isdir(args.folder):
         folder_to_read = os.path.abspath(args.folder)
@@ -81,37 +81,37 @@ def main():
     if os.path.isfile(args.parameters) and '.json' in args.parameters:
 
         parameters_file_name = args.parameters
-        print(f'The parameter file "{args.parameters}" was specified.') 
+        print(f'The parameter file "{args.parameters}" was specified.')
 
         with open(parameters_file_name) as parameters_file:
             parameters = json.load(parameters_file)
 
     else:
-        raise FileNotFoundError(f'ERROR: The parameter json file specified "{args.parameters}" is not valid.')
+        raise FileNotFoundError(f'ERROR: The parameter json file specified "{args.parameters}" is not a valid .json file.')
 
 
-    if args.options: 
+    if args.options:
         if os.path.isfile(args.options) and '.json' in args.options:
 
             options_file_name = args.options
-            print(f'The option file "{args.options}" was specified.') 
+            print(f'The option file "{args.options}" was specified.')
 
             with open(options_file_name) as options_file:
                 options = json.load(options_file)
 
         else:
-            raise FileNotFoundError(f'ERROR: The option json file specified "{args.options}" is not valid.')
+            raise FileNotFoundError(f'ERROR: The option json file specified "{args.options}" is not a valid .json file.')
 
     else:
         options = None
-        print('No options file was specified.\nNOTE: The user will have to select the options via a cmdline interface.')
+        print('No options file was specified.\nNOTE: The user will have to select the options themselves.')
 
 
     print_postprocessing_setup(folder_to_read, options, parameters)
 
     post_processor = ControlPostProcessor(
-        folder     = folder_to_read, 
-        options    = options, 
+        folder     = folder_to_read,
+        options    = options,
         parameters = parameters
     )
 

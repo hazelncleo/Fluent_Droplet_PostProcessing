@@ -4,15 +4,20 @@ from scipy.fft import fftfreq, fftshift, fftn
 from scipy.interpolate import LinearNDInterpolator
 from skimage.filters import window
 from seaborn import color_palette, dark_palette
-from HazelsAwesomeTheme import red_text,green_text,blue_text,yellow_text
+import pandas as pd
+import os
+
+
+def multiply_along_axis(A, B, axis):
+    return np.swapaxes(np.swapaxes(A, axis, -1) * B, -1, axis)
 
 
 class FFT_ISO:
     def __init__(
         self,
         parameters = {
-            'vibration_frequency'           : 1.63e6,
-            'vibration_amplitude'           : 1e-6,
+            'vibration_frequency' : 1.63e6,
+            'vibration_amplitude' : 1e-6,
             'n_cycles'            : 60,
             'n_elements'          : 35,
             'channel_width'       : 50,
@@ -38,11 +43,20 @@ class FFT_ISO:
         self.parameters  = parameters
         self.times       = times
 
+        self.all_raw_data_arrays = {}
+        self.centred_data = {}
+        self.interpolated_data = {}
+        self.windowed_data = {}
+        self.fft_data = {}
+        self.PSD = {}
+        self.wavelengths = {}
+        self.temporal_data = {}
+
         # Calculate sampling data from provided parameters TODO Parameter handling
         self.sampling_data = {
             'elements_along_width'  : self.parameters['n_elements'],
             'elements_along_length' : int(np.ceil(self.parameters['n_elements'] * self.parameters['grid_size'] / self.parameters['channel_width'])),
-            'n_samples_time'        : n_timesteps
+            'n_samples_time'        : 5 * n_timesteps
         }
 
         self.sampling_data.update({
@@ -82,8 +96,8 @@ class FFT_ISO:
                 num   =  self.sampling_data['n_samples_length']
             ),
             'time' : np.linspace(
-                start = self.times[0] + (self.sampling_data['n_samples_time'] / 20),
-                stop  = self.times[1] - (self.sampling_data['n_samples_time'] / 20),
+                start = self.times[0],
+                stop  = self.times[1],
                 num   = self.sampling_data['n_samples_time']
             )
         }
@@ -92,9 +106,9 @@ class FFT_ISO:
         self.meshes['channel_width_frequency']  = fftshift(fftfreq(self.sampling_data['n_samples_width'], self.sampling_data['spatial_sample_spacing']))
         self.meshes['channel_length_frequency'] = fftshift(fftfreq(self.sampling_data['n_samples_length'], self.sampling_data['spatial_sample_spacing']))
 
-        self.meshes['x_mesh'], self.meshes['y_mesh'], self.meshes['t_mesh'] = np.meshgrid(self.meshes['channel_width'],  self.meshes['channel_length'], self.meshes['time'])
+        self.meshes['x_mesh'], self.meshes['y_mesh'] = np.meshgrid(self.meshes['channel_width'],  self.meshes['channel_length'])
 
-        self.meshes['x_frequency_mesh'], self.meshes['y_frequency_mesh'], self.meshes['frequency_mesh'] = np.meshgrid(self.meshes['channel_width_frequency'],  self.meshes['channel_length_frequency'], self.meshes['frequency'])
+        self.meshes['x_frequency_mesh'], self.meshes['y_frequency_mesh'] = np.meshgrid(self.meshes['channel_width_frequency'],  self.meshes['channel_length_frequency'])
 
 
     def create_window_functions(self):
@@ -102,29 +116,27 @@ class FFT_ISO:
         Create 2D window functions
         '''
 
-        #self.window = window(('kaiser', 3), self.meshes['x_mesh'].shape)
-        self.window = window(('hann'), self.meshes['x_mesh'].shape)
+        self.spatial_window = window(
+            window_type = ('tukey', 0.65),
+            shape = (self.sampling_data['n_samples_length'], self.sampling_data['n_samples_width'])
+        )
+
+        self.temporal_window = window(('tukey', 0.4), self.sampling_data['n_samples_time'])
 
 
     def send_data(self, data, time, index):
 
-        # Create list
-        if index == self.sampling_data['n_samples_time']:
-            self.all_data_arrays = []
-
-        data_array = np.empty(shape = (data.shape[0], data.shape[1] + 1))
-        data_array[:,:2] = data[:,:2] * 1e6
-        data_array[:,2] = time * np.ones(shape = (data.shape[0]))
-        data_array[:,3] = data[:,2] * 1e6
-        self.all_data_arrays.append(data_array)
+        self.all_raw_data_arrays[index] = {
+            'time'  : time,
+            'index' : index,
+            'data'  : data * 1e6
+        }
 
 
-    def solve(self, data = None, file = None, time_data = [0,0]):
+    def solve(self):
         '''
         Solve the fft of the surface data
         '''
-
-        self.raw_data = np.concatenate(self.all_data_arrays)
 
         self.centre_data()
 
@@ -145,8 +157,26 @@ class FFT_ISO:
 
         :param self: Description
         '''
-        # Centre x,y,z columns
-        self.data = self.raw_data - (np.array([1,1,0,1]) * np.mean(self.raw_data, axis = 0))
+
+        for index in self.all_raw_data_arrays:
+
+            # Centre z data
+            self.centred_data[index] = {
+                'time'  : self.all_raw_data_arrays[index]['time'],
+                'index' : index,
+                'mean'  : np.mean(self.all_raw_data_arrays[index]['data'][:,2]),
+                'data'  : self.all_raw_data_arrays[index]['data']
+            }
+
+            self.centred_data[index]['data'][:,2] = self.centred_data[index]['data'][:,2] - self.centred_data[index]['mean']
+
+        self.temporal_data['times'] = np.array([self.centred_data[index]['time'] for index in self.centred_data])
+        self.temporal_data['sort_index'] = np.argsort(self.temporal_data['times'])
+        self.temporal_data['times'] = self.temporal_data['times'][self.temporal_data['sort_index']]
+
+        self.temporal_data['raw_data'] = np.array([self.centred_data[index]['mean'] for index in self.centred_data])[self.temporal_data['sort_index']]
+        self.temporal_data['centred'] = self.temporal_data['raw_data'] - np.mean(self.temporal_data['raw_data'])
+
 
 
     def interpolate_data(self):
@@ -154,11 +184,24 @@ class FFT_ISO:
         Interpolate the raw data onto a cartesian grid.
         '''
 
-        interpolator = LinearNDInterpolator(self.data[:,:3], self.data[:,3], fill_value = 0)
+        for index in self.centred_data:
 
-        self.interpolated_data = interpolator(self.meshes['x_mesh'], self.meshes['y_mesh'], self.meshes['t_mesh'])
+            interpolator = LinearNDInterpolator(self.centred_data[index]['data'][:,:2], self.centred_data[index]['data'][:,2], fill_value = 0)
 
-        self.windowed_data = self.interpolated_data * self.window
+            self.interpolated_data[index] = {
+                'time'  : self.centred_data[index]['time'],
+                'index' : index,
+                'data'  : interpolator(self.meshes['x_mesh'], self.meshes['y_mesh'])
+            }
+
+            self.windowed_data[index] = {
+                'time'  : self.centred_data[index]['time'],
+                'index' : index,
+                'data'  : self.interpolated_data[index]['data'] * self.spatial_window
+            }
+        self.temporal_data['interpolated'] = np.interp(self.meshes['time'], self.temporal_data['times'], self.temporal_data['centred'])
+
+        self.temporal_data['windowed'] = self.temporal_data['interpolated'] * self.temporal_window
 
 
     def calculate_ffts(self):
@@ -166,14 +209,30 @@ class FFT_ISO:
 
         '''
 
-        self.fft_data = fftshift(fftn(self.windowed_data, workers = -1))
+        for index in self.windowed_data:
+
+            self.fft_data[index] = {
+                'time'  : self.windowed_data[index]['time'],
+                'index' : index,
+                'data'  : fftshift(fftn(self.windowed_data[index]['data'], workers = -1))
+            }
+
+        self.temporal_data['fft'] = fftshift(fftn(self.temporal_data['windowed']))
 
 
     def calculate_PSDs(self):
 
-        self.PSD = np.log(np.abs(self.fft_data)**2)
+        for index in self.fft_data:
 
-        self.flat_PSD = self.PSD.reshape(self.PSD.shape[0]*self.PSD.shape[1], self.PSD.shape[2])
+            self.PSD[index] = {
+                'time'  : self.fft_data[index]['time'],
+                'index' : index,
+                'data'  : np.log(np.abs(self.fft_data[index]['data'])**2)
+            }
+
+            self.PSD[index]['flat_data'] = self.PSD[index]['data'].flatten()
+
+        self.temporal_data['PSD'] = np.log(np.abs(self.temporal_data['fft'])**2)
 
 
     def calculate_normed_wavelengths(self):
@@ -185,9 +244,13 @@ class FFT_ISO:
             'frequency' : np.sqrt(self.meshes['x_frequency_mesh']**2 + self.meshes['y_frequency_mesh']**2)
         }
 
-        self.norms['flat_frequency'] = self.norms['frequency'].reshape(self.norms['frequency'].shape[0]*self.norms['frequency'].shape[1], self.norms['frequency'].shape[2])
+        self.norms['flat_frequency'] = self.norms['frequency'].flatten()
 
         self.calculate_masks()
+
+        self.wavelengths = np.reciprocal(self.norms['flat_frequency'][self.masks['remove_zero']])
+
+        self.ranged_wavelengths = self.wavelengths[self.masks['range']]
 
 
 
@@ -197,9 +260,11 @@ class FFT_ISO:
         '''
 
         self.masks = {
-            'remove_zero'  : self.norms['flat_frequency'] != 0,
-            'filter_range' : np.logical_and((self.norms['flat_frequency'] > 0.02), (self.norms['flat_frequency'] != 0))
+            'remove_zero'        : self.norms['flat_frequency'] != 0,
+            'remove_large_freqs' : self.norms['flat_frequency'] > 0.02
         }
+
+        self.masks['range'] = self.masks['remove_large_freqs'][self.masks['remove_zero']]
 
 
     def angles_from_frequency_data(self):
@@ -482,12 +547,12 @@ class FFT_ISO:
         )
 
         ax[1].set(
-            xlim   = [np.min(self.meshes['y_frequency_mesh'][:,:,index]), np.max(self.meshes['y_frequency_mesh'][:,:,index])],
-            ylim   = [np.min(self.meshes['y_frequency_mesh'][:,:,index]), np.max(self.meshes['y_frequency_mesh'][:,:,index])],
+            xlim   = [np.min(self.meshes['y_frequency_mesh']), np.max(self.meshes['y_frequency_mesh'])],
+            ylim   = [np.min(self.meshes['y_frequency_mesh']), np.max(self.meshes['y_frequency_mesh'])],
             aspect = 'equal'
         )
 
-        ax[2].set_aspect(1.75)
+        #ax[2].set_aspect(1.75)
 
         ax[0].set_title('Raw displacement data of surface.', fontsize = 10)
         ax[1].set_title('Logged PSD', fontsize = 10)
@@ -502,15 +567,15 @@ class FFT_ISO:
         ax[2].set_ylabel(r'Power $(\mu m^4)$', fontsize = 9)
 
         # Calculate colorbar ranges
-        height_cmap_min_v = self.interpolated_data[:,:,index].min()
-        height_cmap_max_v = self.interpolated_data[:,:,index].max()
-        PSD_cmap_min_v    = self.PSD[:,:,index].min()
-        PSD_cmap_max_v    = self.PSD[:,:,index].max()
+        height_cmap_min_v = self.interpolated_data[index]['data'].min()
+        height_cmap_max_v = self.interpolated_data[index]['data'].max()
+        PSD_cmap_min_v    = self.PSD[index]['data'].min()
+        PSD_cmap_max_v    = self.PSD[index]['data'].max()
 
         display_height_cmap = ax[0].pcolormesh(
-            self.meshes['x_mesh'][:,:,index],
-            self.meshes['y_mesh'][:,:,index],
-            self.interpolated_data[:,:,index],
+            self.meshes['x_mesh'],
+            self.meshes['y_mesh'],
+            self.interpolated_data[index]['data'],
             cmap = self.cmap_deform,
             vmin = height_cmap_min_v,
             vmax = height_cmap_max_v
@@ -531,9 +596,9 @@ class FFT_ISO:
         cb.ax.tick_params(labelsize=6)
 
         display_PSD_cmap = ax[1].pcolormesh(
-            self.meshes['x_frequency_mesh'][:,:,index],
-            self.meshes['y_frequency_mesh'][:,:,index],
-            self.PSD[:,:,index],
+            self.meshes['x_frequency_mesh'],
+            self.meshes['y_frequency_mesh'],
+            self.PSD[index]['data'],
             cmap = self.cmap_psd,
             vmin = PSD_cmap_min_v,
             vmax = PSD_cmap_max_v
@@ -554,8 +619,8 @@ class FFT_ISO:
         cb_2.ax.tick_params(labelsize=6)
 
         ax[2].scatter(
-            x     = np.reciprocal(self.norms['flat_frequency'][:,index][self.masks['filter_range'][:,index]]),
-            y     = self.flat_PSD[:,index][self.masks['filter_range'][:,index]],
+            x     = self.ranged_wavelengths,
+            y     = self.PSD[index]['flat_data'][self.masks['remove_zero']][self.masks['range']],
             color = 'k',
             s     = 0.75
         )
@@ -586,10 +651,27 @@ class FFT_ISO:
 
         if file_name:
             fig.savefig(file_name, dpi = 1200)
+            plt.close(fig)
 
 
-    def output_data(self): # TODO
-        pass
+    def output_data(self, fpath): # TODO
+
+        for index in range(1, self.fft_data):
+            PSD_data = self.PSD[index]['flat_data'][self.masks['remove_zero']][self.masks['range']]
+            max_value_index = np.argpartition(PSD_data, -10)[-10:]
+
+            if index == 1:
+                max_values = PSD_data[max_value_index]
+                wavelengths = self.ranged_wavelengths[max_value_index]
+            else:
+                max_values = np.append(max_values, PSD_data[max_value_index])
+                wavelengths = np.append(wavelengths, self.ranged_wavelengths[max_value_index])
+
+        pd.DataFrame((max_values, wavelengths), columns=['max_PSD_values','wavelengths']).to_csv(os.path.join(fpath, 'spatial_wavelength_data.csv'))
+
+        pd.DataFrame((self.meshes['times'], self.temporal_data['interpolated'], self.temporal_data['windowed'], self.temporal_data['PSD']), columns=['time','interpolated_values','windowed_values','PSD']).to_csv(os.path.join(fpath, 'temporal_frequency_data.csv'))
+
+
 
 if __name__ == '__main__':
     fft_iso = FFT_ISO()

@@ -82,6 +82,18 @@ wheels = [
 ]
 
 [[package]]
+name = "celluloid"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0d/31/80e96c4b221de342eef55f1f07de84b11b5f7cfb8c3b00e235a0bdd0b476/celluloid-0.2.0.tar.gz", hash = "sha256:568b1512c4a97483759e9436c3f3e5dc5566da350179aa1872992ec8d82706e1", size = 6442, upload-time = "2018-11-20T04:06:27.228Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/60/a7/7fbe80721c6f1b7370c4e50c77abe31b4d5cfeb58873d4d32f48ae5a0bae/celluloid-0.2.0-py3-none-any.whl", hash = "sha256:5cebd41276d9658f7667a2f1f565f566763a6110273b4af35c958b1407a9f277", size = 5404, upload-time = "2018-11-20T04:06:22.374Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.1.4"
 source = { registry = "https://pypi.org/simple" }
@@ -236,6 +248,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "ansys-pyensight-core" },
+    { name = "celluloid" },
     { name = "inquirer" },
     { name = "matplotlib" },
     { name = "numpy" },
@@ -248,6 +261,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "ansys-pyensight-core", specifier = ">=0.11.2" },
+    { name = "celluloid", specifier = ">=0.2.0" },
     { name = "inquirer", specifier = ">=3.4.1" },
     { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "numpy", specifier = ">=2.4.1" },

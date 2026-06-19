@@ -725,7 +725,7 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
-        MAX_N_TIMESTEPS_TO_EXTRACT = 40
+        MAX_N_TIMESTEPS_TO_EXTRACT = 350
         n_timesteps = min(MAX_N_TIMESTEPS_TO_EXTRACT, len(self.eocore.TIMEVALUES))
 
         times = [self.eocore.TIMEVALUES[-(n_timesteps + 1)][1], self.eocore.TIMEVALUES[-1][1]]
@@ -751,9 +751,19 @@ class EnsightController:
 
         fft_calculator.solve()
 
-        fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'iso_plot_1.png'), index = 19)
-        fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'iso_plot_2.png'), index = 20)
-        fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'iso_plot_3.png'), index = 21)
+        f,ax = plt.subplots(2,3)
+        ax[0,0].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['raw_data'])
+        ax[0,1].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['centred'])
+        ax[0,2].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['interpolated'])
+        ax[1,0].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['windowed'])
+        ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
+        f.savefig('test.png',dpi=1200)
+
+        fft_calculator.output_data(os.path.join(self.folder, 'output'))
+
+        if plot_results:
+            for i in range(1, n_timesteps + 1):
+                fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', f'iso_plot_{i}.png'), index = i)
 
         print(green_text('FFT of fluid surface completed'))
 
