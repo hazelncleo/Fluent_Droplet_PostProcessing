@@ -725,7 +725,7 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
-        MAX_N_TIMESTEPS_TO_EXTRACT = 250
+        MAX_N_TIMESTEPS_TO_EXTRACT = 300
         n_timesteps = min(MAX_N_TIMESTEPS_TO_EXTRACT, len(self.eocore.TIMEVALUES))
 
         times = [self.eocore.TIMEVALUES[-1 * n_timesteps][1], self.eocore.TIMEVALUES[-1][1]]

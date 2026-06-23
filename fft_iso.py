@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import fftfreq, fftshift, fftn
-from scipy.interpolate import LinearNDInterpolator
+from scipy.interpolate import LinearNDInterpolator, make_interp_spline
 from skimage.filters import window
 from seaborn import color_palette, dark_palette
 import pandas as pd
@@ -178,11 +178,12 @@ class FFT_ISO:
         self.temporal_data['centred'] = self.temporal_data['raw_data'] - np.mean(self.temporal_data['raw_data'])
 
 
-
     def interpolate_data(self):
         '''
         Interpolate the raw data onto a cartesian grid.
         '''
+
+        self.temporal_data['bulk_data'] = np.empty((*self.meshes['x_mesh'].shape, self.sampling_data['n_samples_time']))
 
         for index in self.centred_data:
 
@@ -194,12 +195,20 @@ class FFT_ISO:
                 'data'  : interpolator(self.meshes['x_mesh'], self.meshes['y_mesh'])
             }
 
+            self.temporal_data['bulk_data'][:,:,index - 1] = self.interpolated_data[index]['data']
+
             self.windowed_data[index] = {
                 'time'  : self.centred_data[index]['time'],
                 'index' : index,
                 'data'  : self.interpolated_data[index]['data'] * self.spatial_window
             }
+
         self.temporal_data['interpolated'] = np.interp(self.meshes['time'], self.temporal_data['times'], self.temporal_data['centred'])
+
+        temporal_interpolator = make_interp_spline(self.temporal_data['times'], self.temporal_data['bulk_data'], k = 1, axis = 2)
+        self.temporal_data['bulk_data'] = temporal_interpolator(self.meshes['time'])
+
+        self.temporal_data['bulk_data'] = self.temporal_data['bulk_data'] * self.temporal_window
 
         self.temporal_data['windowed'] = self.temporal_data['interpolated'] * self.temporal_window
 
@@ -220,6 +229,8 @@ class FFT_ISO:
 
         self.temporal_data['fft'] = fftshift(fftn(self.temporal_data['windowed']))
 
+        self.temporal_data['fft_bulk'] = fftshift(fftn(self.temporal_data['bulk_data'], axes = 2))
+
 
     def calculate_PSDs(self):
 
@@ -238,6 +249,8 @@ class FFT_ISO:
         self.mean_flat_PSD = self.mean_PSD.flatten()
 
         self.temporal_data['PSD'] = np.log(np.abs(self.temporal_data['fft'])**2)
+        self.temporal_data['mean_bulk'] = np.mean(np.abs(self.temporal_data['fft_bulk']), axis = (0,1))
+        self.temporal_data['mean_PSD'] = np.log(np.abs(self.temporal_data['mean_bulk']**2))
 
 
     def calculate_normed_wavelengths(self):
@@ -663,18 +676,7 @@ class FFT_ISO:
 
         N_MAX_VALUES = 10
 
-        for index in range(1, n_timesteps + 1):
-            PSD_data = self.PSD[index]['flat_data'][self.masks['remove_zero']][self.masks['range']]
-
-            if index == 1:
-                max_values = PSD_data
-                wavelengths = self.ranged_wavelengths
-            else:
-                max_values = np.append(max_values, PSD_data)
-                wavelengths = np.append(wavelengths, self.ranged_wavelengths)
-
         mean_PSD_data = self.mean_flat_PSD[self.masks['remove_zero']][self.masks['range']]
-
 
         max_value_index = np.argpartition(mean_PSD_data, -1 * N_MAX_VALUES)[-1 * N_MAX_VALUES:]
 
@@ -694,14 +696,3 @@ class FFT_ISO:
             'fft'                 : self.temporal_data['fft'],
             'PSD'                 : self.temporal_data['PSD']
         }).to_csv(os.path.join(fpath, 'temporal_frequency_data.csv'))
-
-
-
-if __name__ == '__main__':
-    f,ax = plt.subplots(1,1)
-    df = pd.read_csv('D:\\wavelength_droplet-sizing_project\\simulations\\straight_channel\\rigid_vibration\\163\\wavelengths\\output\\spatial_wavelength_data.csv')
-    ax.scatter(df['wavelengths'],df['max_PSD_values'])
-    ind = np.argpartition(df['max_PSD_values'], 5)[-5:]
-    print(df['wavelengths'][ind], df['max_PSD_values'][ind])
-    print(np.median(df['wavelengths']),np.mean(df['wavelengths']))
-    f.savefig('pls.png',dpi=1000)
