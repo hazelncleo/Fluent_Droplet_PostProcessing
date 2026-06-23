@@ -56,7 +56,7 @@ class FFT_ISO:
         self.sampling_data = {
             'elements_along_width'  : self.parameters['n_elements'],
             'elements_along_length' : int(np.ceil(self.parameters['n_elements'] * self.parameters['grid_size'] / self.parameters['channel_width'])),
-            'n_samples_time'        : 5 * n_timesteps
+            'n_samples_time'        : 1 * n_timesteps
         }
 
         self.sampling_data.update({
@@ -216,6 +216,7 @@ class FFT_ISO:
                 'index' : index,
                 'data'  : fftshift(fftn(self.windowed_data[index]['data'], workers = -1))
             }
+            self.fft_data[index]['data_magnitude'] = np.abs(self.fft_data[index]['data'])
 
         self.temporal_data['fft'] = fftshift(fftn(self.temporal_data['windowed']))
 
@@ -231,6 +232,10 @@ class FFT_ISO:
             }
 
             self.PSD[index]['flat_data'] = self.PSD[index]['data'].flatten()
+
+        self.mean_fft      = np.mean(np.stack([self.fft_data[index]['data_magnitude'] for index in self.fft_data], axis = 2), axis = 2)
+        self.mean_PSD      = np.log(self.mean_fft**2)
+        self.mean_flat_PSD = self.mean_PSD.flatten()
 
         self.temporal_data['PSD'] = np.log(np.abs(self.temporal_data['fft'])**2)
 
@@ -552,8 +557,6 @@ class FFT_ISO:
             aspect = 'equal'
         )
 
-        #ax[2].set_aspect(1.75)
-
         ax[0].set_title('Raw displacement data of surface.', fontsize = 10)
         ax[1].set_title('Logged PSD', fontsize = 10)
         ax[2].set_title('Normed Wavelength Powers', fontsize = 10)
@@ -569,8 +572,8 @@ class FFT_ISO:
         # Calculate colorbar ranges
         height_cmap_min_v = self.interpolated_data[index]['data'].min()
         height_cmap_max_v = self.interpolated_data[index]['data'].max()
-        PSD_cmap_min_v    = self.PSD[index]['data'].min()
-        PSD_cmap_max_v    = self.PSD[index]['data'].max()
+        PSD_cmap_min_v    = self.mean_PSD.min()
+        PSD_cmap_max_v    = self.mean_PSD.max()
 
         display_height_cmap = ax[0].pcolormesh(
             self.meshes['x_mesh'],
@@ -578,7 +581,8 @@ class FFT_ISO:
             self.interpolated_data[index]['data'],
             cmap = self.cmap_deform,
             vmin = height_cmap_min_v,
-            vmax = height_cmap_max_v
+            vmax = height_cmap_max_v,
+            shading = 'gouraud'
         )
 
         cb = fig.colorbar(
@@ -598,10 +602,11 @@ class FFT_ISO:
         display_PSD_cmap = ax[1].pcolormesh(
             self.meshes['x_frequency_mesh'],
             self.meshes['y_frequency_mesh'],
-            self.PSD[index]['data'],
+            self.mean_PSD,
             cmap = self.cmap_psd,
             vmin = PSD_cmap_min_v,
-            vmax = PSD_cmap_max_v
+            vmax = PSD_cmap_max_v,
+            shading = 'gouraud'
         )
 
         cb_2 = fig.colorbar(
@@ -620,7 +625,7 @@ class FFT_ISO:
 
         ax[2].scatter(
             x     = self.ranged_wavelengths,
-            y     = self.PSD[index]['flat_data'][self.masks['remove_zero']][self.masks['range']],
+            y     = self.mean_flat_PSD[self.masks['remove_zero']][self.masks['range']],
             color = 'k',
             s     = 0.75
         )
@@ -654,29 +659,49 @@ class FFT_ISO:
             plt.close(fig)
 
 
-    def output_data(self, fpath): # TODO
+    def output_data(self, fpath, n_timesteps): # TODO
 
-        for index in range(1, self.fft_data):
+        N_MAX_VALUES = 10
+
+        for index in range(1, n_timesteps + 1):
             PSD_data = self.PSD[index]['flat_data'][self.masks['remove_zero']][self.masks['range']]
-            max_value_index = np.argpartition(PSD_data, -10)[-10:]
 
             if index == 1:
-                max_values = PSD_data[max_value_index]
-                wavelengths = self.ranged_wavelengths[max_value_index]
+                max_values = PSD_data
+                wavelengths = self.ranged_wavelengths
             else:
-                max_values = np.append(max_values, PSD_data[max_value_index])
-                wavelengths = np.append(wavelengths, self.ranged_wavelengths[max_value_index])
+                max_values = np.append(max_values, PSD_data)
+                wavelengths = np.append(wavelengths, self.ranged_wavelengths)
 
-        pd.DataFrame((max_values, wavelengths), columns=['max_PSD_values','wavelengths']).to_csv(os.path.join(fpath, 'spatial_wavelength_data.csv'))
+        mean_PSD_data = self.mean_flat_PSD[self.masks['remove_zero']][self.masks['range']]
 
-        pd.DataFrame((self.meshes['times'], self.temporal_data['interpolated'], self.temporal_data['windowed'], self.temporal_data['PSD']), columns=['time','interpolated_values','windowed_values','PSD']).to_csv(os.path.join(fpath, 'temporal_frequency_data.csv'))
+
+        max_value_index = np.argpartition(mean_PSD_data, -1 * N_MAX_VALUES)[-1 * N_MAX_VALUES:]
+
+        max_values = mean_PSD_data[max_value_index]
+        wavelengths = self.ranged_wavelengths[max_value_index]
+
+        pd.DataFrame({
+            'max_PSD_values' : max_values,
+            'wavelengths'    : wavelengths
+        }).to_csv(os.path.join(fpath, 'spatial_wavelength_data.csv'))
+
+        pd.DataFrame({
+            'time'                : self.meshes['time'],
+            'interpolated_values' : self.temporal_data['interpolated'],
+            'windowed_values'     : self.temporal_data['windowed'],
+            'frequency'           : self.meshes['frequency'],
+            'fft'                 : self.temporal_data['fft'],
+            'PSD'                 : self.temporal_data['PSD']
+        }).to_csv(os.path.join(fpath, 'temporal_frequency_data.csv'))
 
 
 
 if __name__ == '__main__':
-    fft_iso = FFT_ISO()
-    import glob ; files = glob.glob('test_datasets/data/*.npy')
-
-    for i,fpath in enumerate(files):
-        fft_iso.solve(file = fpath)
-        fft_iso.small_plot(f'plot_nn_{i}', f'output/plot_nn_{i}.png')
+    f,ax = plt.subplots(1,1)
+    df = pd.read_csv('D:\\wavelength_droplet-sizing_project\\simulations\\straight_channel\\rigid_vibration\\163\\wavelengths\\output\\spatial_wavelength_data.csv')
+    ax.scatter(df['wavelengths'],df['max_PSD_values'])
+    ind = np.argpartition(df['max_PSD_values'], 5)[-5:]
+    print(df['wavelengths'][ind], df['max_PSD_values'][ind])
+    print(np.median(df['wavelengths']),np.mean(df['wavelengths']))
+    f.savefig('pls.png',dpi=1000)

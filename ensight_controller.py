@@ -725,10 +725,10 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
-        MAX_N_TIMESTEPS_TO_EXTRACT = 350
+        MAX_N_TIMESTEPS_TO_EXTRACT = 250
         n_timesteps = min(MAX_N_TIMESTEPS_TO_EXTRACT, len(self.eocore.TIMEVALUES))
 
-        times = [self.eocore.TIMEVALUES[-(n_timesteps + 1)][1], self.eocore.TIMEVALUES[-1][1]]
+        times = [self.eocore.TIMEVALUES[-1 * n_timesteps][1], self.eocore.TIMEVALUES[-1][1]]
 
         fft_calculator = FFT_ISO(parameters = self.parameters, n_timesteps = n_timesteps, times = times)
 
@@ -751,19 +751,23 @@ class EnsightController:
 
         fft_calculator.solve()
 
-        f,ax = plt.subplots(2,3)
-        ax[0,0].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['raw_data'])
-        ax[0,1].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['centred'])
-        ax[0,2].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['interpolated'])
-        ax[1,0].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['windowed'])
-        ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
-        f.savefig('test.png',dpi=1200)
-
-        fft_calculator.output_data(os.path.join(self.folder, 'output'))
+        fft_calculator.output_data(os.path.join(self.folder, 'output'), n_timesteps = n_timesteps)
 
         if plot_results:
-            for i in range(1, n_timesteps + 1):
-                fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', f'iso_plot_{i}.png'), index = i)
+
+            # Spatial plot
+            fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'spatial_plot.png'), index = n_timesteps)
+
+            # Temporal plot
+            f,ax = plt.subplots(2,3)
+            ax[0,0].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['raw_data'])
+            ax[0,1].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['centred'])
+            ax[0,2].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['interpolated'])
+            ax[1,0].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['windowed'])
+            ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
+            ax[1,1].set_xlim(0, 1e7)
+            f.savefig(os.path.join(self.folder, 'output', 'test.png'),dpi=1200)
+
 
         print(green_text('FFT of fluid surface completed'))
 
@@ -780,7 +784,7 @@ if __name__ == '__main__':
     }
 
     folders = [
-        'C:\\Users\\PCUser\\Documents\\simulations\\temp_storage\\163\\wavelengths'
+        'D:\\wavelength_droplet-sizing_project\\simulations\\straight_channel\\rigid_vibration\\163MHz_noise\\wavelengths'
     ]
 
     for i,folder in enumerate(folders):
@@ -794,7 +798,7 @@ if __name__ == '__main__':
 
         ensig.start_ensight()
 
-        ensig.fft_of_surface()
+        ensig.fft_of_surface(plot_results = True)
 
         ensig.session.close()
 
