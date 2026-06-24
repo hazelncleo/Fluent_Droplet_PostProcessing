@@ -725,7 +725,7 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
-        MAX_N_TIMESTEPS_TO_EXTRACT = 300
+        MAX_N_TIMESTEPS_TO_EXTRACT = 400
         n_timesteps = min(MAX_N_TIMESTEPS_TO_EXTRACT, len(self.eocore.TIMEVALUES))
 
         times = [self.eocore.TIMEVALUES[-1 * n_timesteps][1], self.eocore.TIMEVALUES[-1][1]]
@@ -765,7 +765,46 @@ class EnsightController:
             ax[0,2].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['interpolated'])
             ax[1,0].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['windowed'])
             ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
-            ax[1,1].set_xlim(0, 1e7)
+            ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['mean_PSD'])
+            ax[1,1].set_xlim(0, 5e6)
+            ax[1,1].axvline(
+                x      = 1.63e6,
+                ymin   = 0,
+                ymax   = 1,
+                color  = 'b',
+                lw     = 1,
+                alpha  = 0.55,
+                ls     = '--'
+            )
+            ax[1,1].axvline(
+                x      = 140000,
+                ymin   = 0,
+                ymax   = 1,
+                color  = 'g',
+                lw     = 1,
+                alpha  = 0.55,
+                ls     = '--'
+            )
+            ax[1,2].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
+            ax[1,2].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['mean_PSD'])
+            ax[1,2].axvline(
+                x      = 1.63e6,
+                ymin   = 0,
+                ymax   = 1,
+                color  = 'b',
+                lw     = 1,
+                alpha  = 0.55,
+                ls     = '--'
+            )
+            ax[1,2].axvline(
+                x      = 140000,
+                ymin   = 0,
+                ymax   = 1,
+                color  = 'g',
+                lw     = 1,
+                alpha  = 0.55,
+                ls     = '--'
+            )
             f.savefig(os.path.join(self.folder, 'output', 'test.png'),dpi=1200)
 
 

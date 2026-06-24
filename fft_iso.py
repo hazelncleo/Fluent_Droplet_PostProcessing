@@ -205,8 +205,8 @@ class FFT_ISO:
 
         self.temporal_data['interpolated'] = np.interp(self.meshes['time'], self.temporal_data['times'], self.temporal_data['centred'])
 
-        temporal_interpolator = make_interp_spline(self.temporal_data['times'], self.temporal_data['bulk_data'], k = 1, axis = 2)
-        self.temporal_data['bulk_data'] = temporal_interpolator(self.meshes['time'])
+        #temporal_interpolator = make_interp_spline(self.temporal_data['times'], self.temporal_data['bulk_data'], k = 1, axis = 2)
+        #self.temporal_data['bulk_data'] = temporal_interpolator(self.meshes['time'])
 
         self.temporal_data['bulk_data'] = self.temporal_data['bulk_data'] * self.temporal_window
 
@@ -250,7 +250,7 @@ class FFT_ISO:
 
         self.temporal_data['PSD'] = np.log(np.abs(self.temporal_data['fft'])**2)
         self.temporal_data['mean_bulk'] = np.mean(np.abs(self.temporal_data['fft_bulk']), axis = (0,1))
-        self.temporal_data['mean_PSD'] = np.log(np.abs(self.temporal_data['mean_bulk']**2))
+        self.temporal_data['mean_PSD'] = np.log(self.temporal_data['mean_bulk']**2)
 
 
     def calculate_normed_wavelengths(self):
