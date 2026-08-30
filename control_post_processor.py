@@ -167,7 +167,7 @@ class ControlPostProcessor:
             # Run post-processing operations
             if self.options['General animation']:  self.ensight_controller.basic_animation()
             if self.options['Velocity animation']: self.ensight_controller.velocity_animation()
-            if self.options['FFT']:                self.ensight_controller.fft_of_surface() # FFT should only be run for cases with no droplet formation
+            if self.options['FFT']:                self.ensight_controller.fft_of_surface(plot_results=True) # FFT should only be run for cases with no droplet formation
 
             if self.options['Shearrate']:
                 self.ensight_controller.shearrate_calculation(

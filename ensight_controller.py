@@ -371,17 +371,18 @@ class EnsightController:
         )
 
         # Calculate outlet flowrate variables
+        water_velocity_list = [self.fluid_part, *self.outlet_list]
         self.water_velocity = self.eocore.create_variable(
             name    = 'water_velocity',
             value   = 'velocity*water_vof',
-            sources = [self.fluid_part, self.outlet_part],
+            sources = water_velocity_list,
             private = 1
         )
 
         self.outlet_water_flowrate = self.eocore.create_variable(
             name = 'outlet_water_flowrate',
             value = 'Flow(plist, water_velocity)',
-            sources = [self.outlet_part]
+            sources = self.outlet_list
         )
 
         end_time = time.time()
@@ -396,6 +397,13 @@ class EnsightController:
         self.symmetry_part       = self.eocore.PARTS['symmetry'][0]
         self.solid_coupling_part = self.eocore.PARTS['solid_coupling'][0]
         self.outlet_part         = self.eocore.PARTS['outlet'][0]
+
+        try:
+            self.outlet_top_part = self.eocore.PARTS['outlet_top'][0]
+            self.outlet_list     = [self.outlet_part, self.outlet_top_part]
+        except:
+            self.outlet_list     = [self.outlet_part]
+
         self.iso_default         = self.eocore.DEFAULTPARTS[self.ensight.PART_ISO_SURFACE]
         self.shape_default       = self.eocore.DEFAULTANNOTS[self.ensight.ANNOT_SHAPE]
         self.line_default        = self.eocore.DEFAULTANNOTS[self.ensight.ANNOT_LINE]
@@ -680,15 +688,15 @@ class EnsightController:
             )
 
             # Calculate flowrates
-            raw_flowrate_values            = np.array(self.flowrate_query.QUERY_DATA['xydata']).transpose()
-            t                              = np.append(0, raw_flowrate_values[0])
-            dVdt                           = np.append(0, -1 * 1e9 * raw_flowrate_values[1]) # Flowrate in microlitres
-            Vol                            = (dVdt[1:] + dVdt[:-1]) * (t[1:] - t[:-1]) / 2
-            total_volume_delivered         = np.cumsum(Vol)
-            volumetric_flowrate            = total_volume_delivered / t[1:]
+            raw_flowrate_values    = np.array(self.flowrate_query.QUERY_DATA['xydata']).transpose()
+            t                      = np.append(0, raw_flowrate_values[0])
+            dVdt                   = np.append(0, -1 * 1e9 * raw_flowrate_values[1]) # Flowrate in microlitres
+            Vol                    = (dVdt[1:] + dVdt[:-1]) * (t[1:] - t[:-1]) / 2
+            total_volume_delivered = np.cumsum(Vol)
+            volumetric_flowrate    = total_volume_delivered / t[1:]
 
-            self.results_data['total_volume_delivered']  = total_volume_delivered
-            self.results_data['volumetric_flowrate']     = volumetric_flowrate
+            self.results_data['total_volume_delivered'] = total_volume_delivered
+            self.results_data['volumetric_flowrate']    = volumetric_flowrate
 
             print(green_text('Outlet flowrate calculation completed'))
 
@@ -725,7 +733,7 @@ class EnsightController:
 
     def fft_of_surface(self, plot_results = False):
 
-        MAX_N_TIMESTEPS_TO_EXTRACT = 400
+        MAX_N_TIMESTEPS_TO_EXTRACT = 50
         n_timesteps = min(MAX_N_TIMESTEPS_TO_EXTRACT, len(self.eocore.TIMEVALUES))
 
         times = [self.eocore.TIMEVALUES[-1 * n_timesteps][1], self.eocore.TIMEVALUES[-1][1]]
@@ -751,61 +759,12 @@ class EnsightController:
 
         fft_calculator.solve()
 
-        fft_calculator.output_data(os.path.join(self.folder, 'output'), n_timesteps = n_timesteps)
+        fft_calculator.output_data(os.path.join(self.folder, 'output'))
 
         if plot_results:
 
             # Spatial plot
             fft_calculator.small_plot(title = 'FFT Plot', file_name = os.path.join(self.folder, 'output', 'spatial_plot.png'), index = n_timesteps)
-
-            # Temporal plot
-            f,ax = plt.subplots(2,3)
-            ax[0,0].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['raw_data'])
-            ax[0,1].plot(fft_calculator.temporal_data['times'],fft_calculator.temporal_data['centred'])
-            ax[0,2].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['interpolated'])
-            ax[1,0].plot(fft_calculator.meshes['time'],fft_calculator.temporal_data['windowed'])
-            ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
-            ax[1,1].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['mean_PSD'])
-            ax[1,1].set_xlim(0, 5e6)
-            ax[1,1].axvline(
-                x      = 1.63e6,
-                ymin   = 0,
-                ymax   = 1,
-                color  = 'b',
-                lw     = 1,
-                alpha  = 0.55,
-                ls     = '--'
-            )
-            ax[1,1].axvline(
-                x      = 140000,
-                ymin   = 0,
-                ymax   = 1,
-                color  = 'g',
-                lw     = 1,
-                alpha  = 0.55,
-                ls     = '--'
-            )
-            ax[1,2].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['PSD'])
-            ax[1,2].plot(fft_calculator.meshes['frequency'],fft_calculator.temporal_data['mean_PSD'])
-            ax[1,2].axvline(
-                x      = 1.63e6,
-                ymin   = 0,
-                ymax   = 1,
-                color  = 'b',
-                lw     = 1,
-                alpha  = 0.55,
-                ls     = '--'
-            )
-            ax[1,2].axvline(
-                x      = 140000,
-                ymin   = 0,
-                ymax   = 1,
-                color  = 'g',
-                lw     = 1,
-                alpha  = 0.55,
-                ls     = '--'
-            )
-            f.savefig(os.path.join(self.folder, 'output', 'test.png'),dpi=1200)
 
 
         print(green_text('FFT of fluid surface completed'))

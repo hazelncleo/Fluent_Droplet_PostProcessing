@@ -41,7 +41,7 @@ class DropletSizingScriptController:
 
         METRECUBED_TO_MICRON = 1e18
         VOLUME_COEFF         = 3 / (4 * np.pi)
-        MAX_DIAM             = 150
+        MAX_DIAM             = 50
         FPF_LIMIT            = 5
         QUANTILES_TO_EXTRACT = [0.1,0.5,0.9]
 
@@ -77,15 +77,15 @@ class DropletSizingScriptController:
 
             # Append current step diameters & volumes
             if i == 0:
-                total_diameters = no_large_diameters['diameter']
-                total_volumes   = no_large_diameters['volume']
-                total_mass      = no_large_diameters['mass']
-                x_position      = no_large_diameters['x']
-                y_position      = no_large_diameters['y']
-                z_position      = no_large_diameters['z']
-                x_velocity      = no_large_diameters['u']
-                y_velocity      = no_large_diameters['v']
-                z_velocity      = no_large_diameters['w']
+                total_diameters = no_large_diameters['diameter'].values
+                total_volumes   = no_large_diameters['volume'].values
+                total_mass      = no_large_diameters['mass'].values
+                x_position      = no_large_diameters['x'].values
+                y_position      = no_large_diameters['y'].values
+                z_position      = no_large_diameters['z'].values
+                x_velocity      = no_large_diameters['u'].values
+                y_velocity      = no_large_diameters['v'].values
+                z_velocity      = no_large_diameters['w'].values
             else:
                 total_diameters = np.hstack((total_diameters, no_large_diameters['diameter']))
                 total_volumes   = np.hstack((total_volumes, no_large_diameters['volume']))

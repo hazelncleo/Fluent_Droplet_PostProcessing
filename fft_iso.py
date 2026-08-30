@@ -50,13 +50,12 @@ class FFT_ISO:
         self.fft_data = {}
         self.PSD = {}
         self.wavelengths = {}
-        self.temporal_data = {}
 
         # Calculate sampling data from provided parameters TODO Parameter handling
         self.sampling_data = {
             'elements_along_width'  : self.parameters['n_elements'],
             'elements_along_length' : int(np.ceil(self.parameters['n_elements'] * self.parameters['grid_size'] / self.parameters['channel_width'])),
-            'n_samples_time'        : 1 * n_timesteps
+            'n_samples_time'        : n_timesteps
         }
 
         self.sampling_data.update({
@@ -94,15 +93,8 @@ class FFT_ISO:
                 start = -int(self.parameters['grid_size'] / 2),
                 stop  =  int(self.parameters['grid_size'] / 2),
                 num   =  self.sampling_data['n_samples_length']
-            ),
-            'time' : np.linspace(
-                start = self.times[0],
-                stop  = self.times[1],
-                num   = self.sampling_data['n_samples_time']
             )
         }
-
-        self.meshes['frequency']                = fftshift(fftfreq(self.sampling_data['n_samples_time'], self.sampling_data['temporal_sample_spacing']))
         self.meshes['channel_width_frequency']  = fftshift(fftfreq(self.sampling_data['n_samples_width'], self.sampling_data['spatial_sample_spacing']))
         self.meshes['channel_length_frequency'] = fftshift(fftfreq(self.sampling_data['n_samples_length'], self.sampling_data['spatial_sample_spacing']))
 
@@ -120,8 +112,6 @@ class FFT_ISO:
             window_type = ('tukey', 0.65),
             shape = (self.sampling_data['n_samples_length'], self.sampling_data['n_samples_width'])
         )
-
-        self.temporal_window = window(('tukey', 0.4), self.sampling_data['n_samples_time'])
 
 
     def send_data(self, data, time, index):
@@ -167,23 +157,15 @@ class FFT_ISO:
                 'mean'  : np.mean(self.all_raw_data_arrays[index]['data'][:,2]),
                 'data'  : self.all_raw_data_arrays[index]['data']
             }
-
+            #self.centred_data[index]['data'][:,0] = self.centred_data[index]['data'][:,0] - np.mean(self.centred_data[index]['data'][:,0])
+            #self.centred_data[index]['data'][:,1] = self.centred_data[index]['data'][:,1] - np.mean(self.centred_data[index]['data'][:,1])
             self.centred_data[index]['data'][:,2] = self.centred_data[index]['data'][:,2] - self.centred_data[index]['mean']
-
-        self.temporal_data['times'] = np.array([self.centred_data[index]['time'] for index in self.centred_data])
-        self.temporal_data['sort_index'] = np.argsort(self.temporal_data['times'])
-        self.temporal_data['times'] = self.temporal_data['times'][self.temporal_data['sort_index']]
-
-        self.temporal_data['raw_data'] = np.array([self.centred_data[index]['mean'] for index in self.centred_data])[self.temporal_data['sort_index']]
-        self.temporal_data['centred'] = self.temporal_data['raw_data'] - np.mean(self.temporal_data['raw_data'])
 
 
     def interpolate_data(self):
         '''
         Interpolate the raw data onto a cartesian grid.
         '''
-
-        self.temporal_data['bulk_data'] = np.empty((*self.meshes['x_mesh'].shape, self.sampling_data['n_samples_time']))
 
         for index in self.centred_data:
 
@@ -195,22 +177,11 @@ class FFT_ISO:
                 'data'  : interpolator(self.meshes['x_mesh'], self.meshes['y_mesh'])
             }
 
-            self.temporal_data['bulk_data'][:,:,index - 1] = self.interpolated_data[index]['data']
-
             self.windowed_data[index] = {
                 'time'  : self.centred_data[index]['time'],
                 'index' : index,
                 'data'  : self.interpolated_data[index]['data'] * self.spatial_window
             }
-
-        self.temporal_data['interpolated'] = np.interp(self.meshes['time'], self.temporal_data['times'], self.temporal_data['centred'])
-
-        #temporal_interpolator = make_interp_spline(self.temporal_data['times'], self.temporal_data['bulk_data'], k = 1, axis = 2)
-        #self.temporal_data['bulk_data'] = temporal_interpolator(self.meshes['time'])
-
-        self.temporal_data['bulk_data'] = self.temporal_data['bulk_data'] * self.temporal_window
-
-        self.temporal_data['windowed'] = self.temporal_data['interpolated'] * self.temporal_window
 
 
     def calculate_ffts(self):
@@ -226,10 +197,6 @@ class FFT_ISO:
                 'data'  : fftshift(fftn(self.windowed_data[index]['data'], workers = -1))
             }
             self.fft_data[index]['data_magnitude'] = np.abs(self.fft_data[index]['data'])
-
-        self.temporal_data['fft'] = fftshift(fftn(self.temporal_data['windowed']))
-
-        self.temporal_data['fft_bulk'] = fftshift(fftn(self.temporal_data['bulk_data'], axes = 2))
 
 
     def calculate_PSDs(self):
@@ -247,10 +214,6 @@ class FFT_ISO:
         self.mean_fft      = np.mean(np.stack([self.fft_data[index]['data_magnitude'] for index in self.fft_data], axis = 2), axis = 2)
         self.mean_PSD      = np.log(self.mean_fft**2)
         self.mean_flat_PSD = self.mean_PSD.flatten()
-
-        self.temporal_data['PSD'] = np.log(np.abs(self.temporal_data['fft'])**2)
-        self.temporal_data['mean_bulk'] = np.mean(np.abs(self.temporal_data['fft_bulk']), axis = (0,1))
-        self.temporal_data['mean_PSD'] = np.log(self.temporal_data['mean_bulk']**2)
 
 
     def calculate_normed_wavelengths(self):
@@ -653,7 +616,7 @@ class FFT_ISO:
             lw     = 1,
             alpha  = 0.55,
             ls     = '--',
-            label  = r'{:.1f}$\mu m$'.format(wavelength)
+            label  = rf'{wavelength:.1f}$\mu m$'
         )
 
         ax[2].legend(
@@ -672,7 +635,7 @@ class FFT_ISO:
             plt.close(fig)
 
 
-    def output_data(self, fpath, n_timesteps): # TODO
+    def output_data(self, fpath):
 
         N_MAX_VALUES = 10
 
@@ -687,12 +650,3 @@ class FFT_ISO:
             'max_PSD_values' : max_values,
             'wavelengths'    : wavelengths
         }).to_csv(os.path.join(fpath, 'spatial_wavelength_data.csv'))
-
-        pd.DataFrame({
-            'time'                : self.meshes['time'],
-            'interpolated_values' : self.temporal_data['interpolated'],
-            'windowed_values'     : self.temporal_data['windowed'],
-            'frequency'           : self.meshes['frequency'],
-            'fft'                 : self.temporal_data['fft'],
-            'PSD'                 : self.temporal_data['PSD']
-        }).to_csv(os.path.join(fpath, 'temporal_frequency_data.csv'))

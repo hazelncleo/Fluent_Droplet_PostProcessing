@@ -1,8 +1,8 @@
 {
-    "vibration_frequency" : 1.63e6,
+    "vibration_frequency" : 2.52e6,
     "vibration_amplitude" : 0.75e-6,
-    "n_cycles"            : 40,
-    "n_elements"          : 35,
+    "n_cycles"            : 55,
+    "n_elements"          : 40,
     "channel_width"       : 30,
     "grid_size"           : 500
 }
