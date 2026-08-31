@@ -154,12 +154,13 @@ class FFT_ISO:
             self.centred_data[index] = {
                 'time'  : self.all_raw_data_arrays[index]['time'],
                 'index' : index,
-                'mean'  : np.mean(self.all_raw_data_arrays[index]['data'][:,2]),
                 'data'  : self.all_raw_data_arrays[index]['data']
             }
-            #self.centred_data[index]['data'][:,0] = self.centred_data[index]['data'][:,0] - np.mean(self.centred_data[index]['data'][:,0])
-            #self.centred_data[index]['data'][:,1] = self.centred_data[index]['data'][:,1] - np.mean(self.centred_data[index]['data'][:,1])
-            self.centred_data[index]['data'][:,2] = self.centred_data[index]['data'][:,2] - self.centred_data[index]['mean']
+
+            if ('solid_coupled' in self.parameters) and self.parameters['solid_coupled']:
+                self.centred_data[index]['data'] = self.centred_data[index]['data'] - np.mean(self.centred_data[index]['data'], axis = 0)
+            else:
+                self.centred_data[index]['data'][:,2] = self.centred_data[index]['data'][:,2] - np.mean(self.centred_data[index]['data'][:,2])
 
 
     def interpolate_data(self):

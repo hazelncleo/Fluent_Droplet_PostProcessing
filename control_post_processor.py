@@ -217,16 +217,4 @@ class ControlPostProcessor:
         if os.path.exists(fpath):
             print(yellow_text('Warning: The file "{}" was overwritten upon saving the .csv output file.'.format(os.path.join('output', 'ensight_data.csv'))))
 
-            temp_data = pd.read_csv(fpath, index_col = 'timestep_number')
-
-            for column in self.ensight_controller.results_data:
-                if column not in temp_data:
-                    temp_data[column] = self.ensight_controller.results_data[column]
-
-            temp_data.to_csv(fpath)
-
-
-        else:
-            self.ensight_controller.results_data.to_csv(fpath)
-
-
+        self.ensight_controller.results_data.to_csv(fpath)

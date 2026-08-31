@@ -15,6 +15,8 @@ import time
 
 from fft_iso import FFT_ISO
 
+SAVE_ARRAY_TO_FILE = True
+
 class EnsightController:
     def __init__(self, parameters, folder):
         self.folder     = folder
@@ -745,9 +747,16 @@ class EnsightController:
         self.ensight.solution_time.increment(1)
         self.ensight.solution_time.update_to_last()
 
+        if SAVE_ARRAY_TO_FILE:
+            os.mkdir(os.path.join(self.folder, 'output','raw_data'))
+
         for i in range(n_timesteps):
 
             self.iso_surface_coordinates = self.coord_iso.get_values([self.coords], activate=1)[self.coords]
+
+            if SAVE_ARRAY_TO_FILE:
+                pd.DataFrame(self.iso_surface_coordinates, colums = ['x_coord','y_coord','z_coord']).to_csv(os.path.join(self.folder, 'output','raw_data',f'raw_surface_data_{i}.csv'), index = False)
+
 
             fft_calculator.send_data(
                 data     = self.iso_surface_coordinates,
