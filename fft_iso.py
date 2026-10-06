@@ -638,14 +638,18 @@ class FFT_ISO:
 
     def output_data(self, fpath):
 
-        N_MAX_VALUES = 10
+        N_MAX_VALUES = -1
 
         mean_PSD_data = self.mean_flat_PSD[self.masks['remove_zero']][self.masks['range']]
 
-        max_value_index = np.argpartition(mean_PSD_data, -1 * N_MAX_VALUES)[-1 * N_MAX_VALUES:]
+        if N_MAX_VALUES > 0:
+            max_value_index = np.argpartition(mean_PSD_data, -1 * N_MAX_VALUES)[-1 * N_MAX_VALUES:]
+            max_values = mean_PSD_data[max_value_index]
+            wavelengths = self.ranged_wavelengths[max_value_index]
+        else:
+            max_values = mean_PSD_data
+            wavelengths = self.ranged_wavelengths
 
-        max_values = mean_PSD_data[max_value_index]
-        wavelengths = self.ranged_wavelengths[max_value_index]
 
         pd.DataFrame({
             'max_PSD_values' : max_values,

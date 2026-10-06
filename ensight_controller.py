@@ -755,7 +755,7 @@ class EnsightController:
             self.iso_surface_coordinates = self.coord_iso.get_values([self.coords], activate=1)[self.coords]
 
             if SAVE_ARRAY_TO_FILE:
-                pd.DataFrame(self.iso_surface_coordinates, colums = ['x_coord','y_coord','z_coord']).to_csv(os.path.join(self.folder, 'output','raw_data',f'raw_surface_data_{i}.csv'), index = False)
+                pd.DataFrame(self.iso_surface_coordinates, columns = ['x_coord','y_coord','z_coord']).to_csv(os.path.join(self.folder, 'output','raw_data',f'raw_surface_data_{i}.csv'), index = False)
 
 
             fft_calculator.send_data(
